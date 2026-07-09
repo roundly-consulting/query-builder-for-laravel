@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use RoundlyConsulting\QueryBuilder\Enums\FilterOperator;
 use RoundlyConsulting\QueryBuilder\Enums\SortDirection;
 use RoundlyConsulting\QueryBuilder\Enums\UnknownParameterMode;
 
@@ -29,3 +30,9 @@ it('resolves the unknown-parameter mode from config strings', function (): void 
 it('rejects an invalid unknown-parameter mode value', function (): void {
     UnknownParameterMode::from('nonsense');
 })->throws(ValueError::class);
+
+it('backs each filter operator with its sql comparison', function (): void {
+    expect(FilterOperator::values()->all())->toBe(['=', '!=', '>', '>=', '<', '<='])
+        ->and(FilterOperator::GreaterThanOrEqual->value)->toBe('>=')
+        ->and(FilterOperator::count())->toBe(6);
+});
