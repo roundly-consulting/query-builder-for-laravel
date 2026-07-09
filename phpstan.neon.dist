@@ -1,0 +1,8 @@
+parameters:
+    level: 7
+    paths:
+        - src
+        - config
+        # A fixture FormRequest that uses the HasPageSize trait, so PHPStan
+        # resolves the trait in a using-class context.
+        - tests/Support/Requests/ListRequest.php
