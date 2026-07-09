@@ -98,14 +98,29 @@ it reads from (defaults to the current `request()`).
 | Constructor | Request | Effect |
 |---|---|---|
 | `AllowedFilter::exact('status')` | `filter[status]=published` | `where('status', 'published')`; a comma list becomes `whereIn`. |
-| `AllowedFilter::partial('title')` | `filter[title]=hello` | Case-insensitive `LIKE` contains, portable across sqlite/mysql/pgsql, with `%`/`_` escaped. |
+| `AllowedFilter::partial('title')` | `filter[title]=hello` | Case-insensitive `LIKE` contains (`%hello%`), portable across sqlite/mysql/pgsql, with `%`/`_` escaped. |
+| `AllowedFilter::beginsWith('code')` | `filter[code]=SKU` | Anchored prefix `LIKE` (`SKU%`), escaped and case-insensitive. |
+| `AllowedFilter::endsWith('code')` | `filter[code]=-01` | Anchored suffix `LIKE` (`%-01`), escaped and case-insensitive. |
+| `AllowedFilter::operator('min_views', FilterOperator::GreaterThanOrEqual, 'views')` | `filter[min_views]=10` | Fixed comparison `where('views', '>=', 10)`; a comma list becomes a grouped `OR`. |
 | `AllowedFilter::scope('published')` | `filter[published]=1` | Calls the model scope `scopePublished(...)`; an array value is spread as scope arguments. |
 | `AllowedFilter::callback('min_views', $cb)` | `filter[min_views]=10` | Invokes `$cb($query, $value, $name)`. |
-| `AllowedFilter::trashed()` | `filter[trashed]=with` | `with` includes trashed, `only` returns only trashed, otherwise non-trashed (needs `SoftDeletes`). |
+| `AllowedFilter::trashed()` | `filter[trashed]=with` | `with` includes trashed, `only` returns only trashed (honouring a custom soft-delete column), otherwise non-trashed (needs `SoftDeletes`). |
 | `AllowedFilter::custom('x', $filter)` | `filter[x]=…` | Runs your own `Filter` implementation. |
 
 Every constructor takes an optional internal name to map a public request key to a different
 column or scope: `AllowedFilter::exact('state', 'status')`.
+
+`operator()` picks the comparison **server-side** from the `FilterOperator` enum (`=`, `!=`,
+`>`, `>=`, `<`, `<=`) — the wire stays `filter[<name>]=<value>`; the operator is never read
+from the request. Use it instead of a hand-written comparison `callback`:
+
+```php
+use RoundlyConsulting\QueryBuilder\Enums\FilterOperator;
+
+->allowedFilters(
+    AllowedFilter::operator('min_level', FilterOperator::GreaterThanOrEqual, 'level'),
+)
+```
 
 Values are normalised once before a filter runs: a comma list becomes an array, `true`/`false`
 become booleans, and one level of `filter[x][]=` array nesting is flattened.
