@@ -194,8 +194,10 @@ final class QueryBuilder
 
     private function mode(string $key): UnknownParameterMode
     {
-        return UnknownParameterMode::from(
+        // Fail closed: an invalid/typo'd config value falls back to the secure
+        // Reject default rather than throwing a ValueError (uncaught 500).
+        return UnknownParameterMode::tryFrom(
             (string) config("query-builder.mode.{$key}", 'reject'),
-        );
+        ) ?? UnknownParameterMode::Reject;
     }
 }

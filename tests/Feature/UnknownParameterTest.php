@@ -52,6 +52,20 @@ it('drops unknown sorts silently in ignore mode', function (): void {
         ->assertJsonCount(1);
 });
 
+it('falls back to reject when the unknown-filter mode config is invalid', function (): void {
+    config()->set('query-builder.mode.unknown_filter', 'bogus');
+
+    $this->getJson('/qb-posts?filter[bogus]=1')
+        ->assertStatus(400);
+});
+
+it('falls back to reject when the unknown-sort mode config is invalid', function (): void {
+    config()->set('query-builder.mode.unknown_sort', 'bogus');
+
+    $this->getJson('/qb-posts?sort=-bogus')
+        ->assertStatus(400);
+});
+
 it('throws an http exception carrying a 400 status', function (): void {
     $throw = fn () => QueryBuilder::for(Post::class, Request::create('/?filter[bogus]=1'))
         ->allowedFilters('status')
