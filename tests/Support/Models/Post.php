@@ -42,4 +42,12 @@ final class Post extends Model
     {
         $query->whereBetween('views', [$min, $max]);
     }
+
+    /**
+     * @param  Builder<Post>  $query
+     */
+    public function scopePublished(Builder $query, bool $published): void
+    {
+        $query->where('status', $published ? 'published' : 'draft');
+    }
 }
