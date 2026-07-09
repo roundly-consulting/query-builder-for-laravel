@@ -1,3 +1,9 @@
+<p align="center">
+  <a href="https://roundly-consulting.com/open-source">
+    <img src="art/hero.png" alt="Query Builder For Laravel — Roundly open source" width="100%">
+  </a>
+</p>
+
 # Query Builder for Laravel
 
 Allow-list-driven filtering, sorting and pagination for Laravel API list endpoints. Read the
