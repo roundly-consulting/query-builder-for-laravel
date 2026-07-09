@@ -30,9 +30,18 @@ final class TrashedFilter implements Filter
         }
 
         if ($value === 'only') {
+            $model = $query->getModel();
+
+            // Honour a model's custom soft-delete column (const DELETED_AT /
+            // getDeletedAtColumn()). The qualifier lives on the SoftDeletes
+            // trait, not base Model, so guard it for Larastan.
+            $column = method_exists($model, 'getQualifiedDeletedAtColumn')
+                ? (string) $model->getQualifiedDeletedAtColumn()
+                : $model->getTable().'.deleted_at';
+
             $query
                 ->withoutGlobalScope(SoftDeletingScope::class)
-                ->whereNotNull($query->getModel()->getTable().'.deleted_at');
+                ->whereNotNull($column);
 
             return;
         }

@@ -54,5 +54,12 @@ abstract class TestCase extends Orchestra
             $table->string('name');
             $table->timestamps();
         });
+
+        Schema::create('archived_posts', function (Blueprint $table): void {
+            $table->id();
+            $table->string('title');
+            $table->timestamps();
+            $table->softDeletes('archived_at');
+        });
     }
 }
