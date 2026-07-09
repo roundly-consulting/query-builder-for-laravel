@@ -1,0 +1,225 @@
+# Query Builder for Laravel
+
+Allow-list-driven filtering, sorting and pagination for Laravel API list endpoints. Read the
+request query string (`filter[...]`, `sort=`, `page`, `per_page`) and apply **only** the
+filters and sorts a controller explicitly permits — everything else is rejected. It is a
+native, dependency-policy-clean replacement for third-party query builders: no runtime
+dependencies beyond Laravel, Symfony, and our own enums package.
+
+## Requirements
+
+- PHP `^8.4`
+- Laravel `^12.0` or `^13.0`
+- [`roundly-consulting/enums-for-laravel`](https://github.com/roundly-consulting/enums-for-laravel)
+  (installed automatically as a dependency)
+
+## Installation
+
+```bash
+composer require roundly-consulting/query-builder-for-laravel
+```
+
+The package ships **no** migrations or models — it only reads the request and mutates a query
+builder the host application owns. Optionally publish the config file:
+
+```bash
+php artisan vendor:publish --tag="query-builder-config"
+```
+
+## Configuration
+
+The published `config/query-builder.php`:
+
+```php
+return [
+    'parameters' => [
+        'filter' => 'filter',   // filter[<name>]=<value>
+        'sort'   => 'sort',     // sort=-created_at,name
+    ],
+
+    'pagination' => [
+        'page_name'        => 'page',
+        'per_page_name'    => 'per_page',
+        'default_per_page' => 20,
+        'max_per_page'     => 100,
+    ],
+
+    'mode' => [
+        'unknown_filter' => 'reject',
+        'unknown_sort'   => 'reject',
+    ],
+];
+```
+
+| Key | Type | Default | Purpose |
+|---|---|---|---|
+| `parameters.filter` | string | `filter` | Query-string key that holds the filter bag. |
+| `parameters.sort` | string | `sort` | Query-string key that holds the sort string. |
+| `pagination.page_name` | string | `page` | Paginator page parameter name. |
+| `pagination.per_page_name` | string | `per_page` | Page-size parameter name (used by `HasPageSize`). |
+| `pagination.default_per_page` | int | `20` | Page size used when `per_page` is absent or invalid. |
+| `pagination.max_per_page` | int | `100` | Upper bound — `per_page` above it is a 422; also a hard cap. |
+| `mode.unknown_filter` | string | `reject` | `reject` (HTTP 400) or `ignore` (drop the key) for un-allow-listed filters. |
+| `mode.unknown_sort` | string | `reject` | `reject` (HTTP 400) or `ignore` (drop the key) for un-allow-listed sorts. |
+
+The package works with zero host configuration — the shipped defaults are the intended wire
+contract.
+
+## Usage
+
+Build a query for a model (or a prepared builder), declare the allow-list, then treat the
+result like any Eloquent builder — unknown calls forward straight through:
+
+```php
+use RoundlyConsulting\QueryBuilder\AllowedFilter;
+use RoundlyConsulting\QueryBuilder\AllowedSort;
+use RoundlyConsulting\QueryBuilder\QueryBuilder;
+
+$posts = QueryBuilder::for(Post::class)
+    ->allowedFilters(
+        AllowedFilter::exact('status'),
+        AllowedFilter::partial('title'),
+        AllowedFilter::scope('published'),
+        AllowedFilter::callback('min_views', fn ($query, $value) => $query->where('views', '>=', $value)),
+        AllowedFilter::trashed(),
+    )
+    ->allowedSorts('title', AllowedSort::field('popularity', 'views'))
+    ->defaultSort('-created_at')
+    ->with(['author'])
+    ->paginate($request->perPage());
+```
+
+`QueryBuilder::for()` accepts either a model class string or a prepared builder (so you can
+pre-scope with `Post::query()->where(...)`). A second, optional argument overrides the request
+it reads from (defaults to the current `request()`).
+
+### Filters
+
+| Constructor | Request | Effect |
+|---|---|---|
+| `AllowedFilter::exact('status')` | `filter[status]=published` | `where('status', 'published')`; a comma list becomes `whereIn`. |
+| `AllowedFilter::partial('title')` | `filter[title]=hello` | Case-insensitive `LIKE` contains, portable across sqlite/mysql/pgsql, with `%`/`_` escaped. |
+| `AllowedFilter::scope('published')` | `filter[published]=1` | Calls the model scope `scopePublished(...)`; an array value is spread as scope arguments. |
+| `AllowedFilter::callback('min_views', $cb)` | `filter[min_views]=10` | Invokes `$cb($query, $value, $name)`. |
+| `AllowedFilter::trashed()` | `filter[trashed]=with` | `with` includes trashed, `only` returns only trashed, otherwise non-trashed (needs `SoftDeletes`). |
+| `AllowedFilter::custom('x', $filter)` | `filter[x]=…` | Runs your own `Filter` implementation. |
+
+Every constructor takes an optional internal name to map a public request key to a different
+column or scope: `AllowedFilter::exact('state', 'status')`.
+
+Values are normalised once before a filter runs: a comma list becomes an array, `true`/`false`
+become booleans, and one level of `filter[x][]=` array nesting is flattened.
+
+### Sorts
+
+```php
+->allowedSorts('title', AllowedSort::field('popularity', 'views'), AllowedSort::custom('length', new TitleLengthSort))
+->defaultSort('-created_at')          // applied only when no `sort` param is present
+```
+
+- `sort=title` sorts ascending; a leading `-` (`sort=-title`) sorts descending.
+- `sort=-created_at,name` applies multiple sorts left to right.
+- `defaultSort()` supports the same `-` prefix and comma multi-sort, and runs only when the
+  request omits `sort`.
+
+A bare string is sugar: a string filter becomes `exact`, a string sort becomes `field`.
+
+### Pagination — `HasPageSize`
+
+Mix `HasPageSize` into a FormRequest to validate and resolve the page size:
+
+```php
+use Illuminate\Foundation\Http\FormRequest;
+use RoundlyConsulting\QueryBuilder\Concerns\HasPageSize;
+
+final class ListPostsRequest extends FormRequest
+{
+    use HasPageSize;
+
+    public function rules(): array
+    {
+        return [
+            ...$this->pageSizeRules(),
+            // your other rules
+        ];
+    }
+}
+```
+
+```php
+$posts = QueryBuilder::for(Post::class)
+    ->allowedFilters('status')
+    ->paginate($request->perPage());
+```
+
+`per_page` above `max_per_page`, below 1, or non-integer yields a **422**; `perPage()` also
+hard-caps at `max_per_page` and falls back to `default_per_page` as defence in depth.
+
+### Frozen wire contract
+
+| Concern | Syntax | Semantics |
+|---|---|---|
+| Filter | `filter[<name>]=<value>` | One param per filter; `<name>` is the allow-list key. |
+| Multi-value filter | `filter[<name>]=a,b,c` | Comma-split → array; `exact` → `whereIn`. |
+| Boolean filter value | `filter[<name>]=true` / `false` | Cast to a PHP bool before the filter runs. |
+| Sort asc / desc | `sort=field` / `sort=-field` | Leading `-` = descending. |
+| Multi-sort | `sort=-created_at,name` | Comma list, applied left → right. |
+| Pagination | `page=<n>` & `per_page=<n>` | Laravel paginator names; `per_page` validated by `HasPageSize`. |
+| Unknown filter/sort key | any key not allow-listed | HTTP 400 (or dropped in `ignore` mode). |
+| Invalid `per_page` | `> max`, `< 1`, non-integer | HTTP 422. |
+
+### Unknown parameters
+
+Requesting a filter or sort that is not allow-listed throws `UnknownFilter` / `UnknownSort`,
+both `Symfony` HTTP exceptions with a **400** status and a translatable message
+(`query-builder::errors.*`). Set `mode.unknown_filter` or `mode.unknown_sort` to `ignore` to
+silently drop the offending key and apply only the allow-listed ones instead.
+
+### Custom filters and sorts
+
+Implement the contracts to plug in bespoke logic:
+
+```php
+use Illuminate\Database\Eloquent\Builder;
+use RoundlyConsulting\QueryBuilder\Contracts\Filter;
+
+final class EvenViewsFilter implements Filter
+{
+    public function apply(Builder $query, mixed $value, string $property): void
+    {
+        $query->whereRaw('views % 2 = 0');
+    }
+}
+
+// ...->allowedFilters(AllowedFilter::custom('even', new EvenViewsFilter))
+```
+
+```php
+use Illuminate\Database\Eloquent\Builder;
+use RoundlyConsulting\QueryBuilder\Contracts\Sort;
+use RoundlyConsulting\QueryBuilder\Enums\SortDirection;
+
+final class TitleLengthSort implements Sort
+{
+    public function apply(Builder $query, SortDirection $direction, string $property): void
+    {
+        $query->orderByRaw('LENGTH(title) '.$direction->value);
+    }
+}
+
+// ...->allowedSorts(AllowedSort::custom('length', new TitleLengthSort))
+```
+
+## Testing
+
+```bash
+composer test
+```
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
+
+## License
+
+The MIT License (MIT). Please see [LICENSE.md](LICENSE.md). Maintained by roundly-consulting.
