@@ -1,0 +1,42 @@
+<?php
+
+declare(strict_types=1);
+
+namespace RoundlyConsulting\QueryBuilder\Filters;
+
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
+use RoundlyConsulting\QueryBuilder\Contracts\Filter;
+
+/**
+ * Toggles the soft-delete scope for a model using SoftDeletes:
+ *   `with` → include trashed, `only` → only trashed, anything else → default.
+ *
+ * Implemented by lifting the SoftDeletingScope global scope (the same thing
+ * withTrashed()/onlyTrashed() do) so it type-checks on a generic model builder.
+ */
+final class TrashedFilter implements Filter
+{
+    /**
+     * @param  Builder<Model>  $query
+     */
+    public function apply(Builder $query, mixed $value, string $property): void
+    {
+        if ($value === 'with') {
+            $query->withoutGlobalScope(SoftDeletingScope::class);
+
+            return;
+        }
+
+        if ($value === 'only') {
+            $query
+                ->withoutGlobalScope(SoftDeletingScope::class)
+                ->whereNotNull($query->getModel()->getTable().'.deleted_at');
+
+            return;
+        }
+
+        // Default: keep the SoftDeletingScope in place, so only non-trashed rows return.
+    }
+}
