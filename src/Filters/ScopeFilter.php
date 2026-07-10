@@ -9,11 +9,25 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use RoundlyConsulting\QueryBuilder\Contracts\Filter;
 
-final class ScopeFilter implements Filter
+final readonly class ScopeFilter implements Filter
 {
     /**
-     * Call the model's query scope named after the property (camel-cased). An
-     * array value is spread as the scope arguments; a scalar is passed as one.
+     * @param  bool  $spread  spread an array value across the scope's arguments
+     *                        instead of passing it as a single argument. Off by
+     *                        default: the request must never control the number
+     *                        or position of arguments handed to a host scope
+     *                        (it could inject an optional column/operator param).
+     *                        Only enable it for a scope you own whose signature
+     *                        matches the value shape.
+     */
+    public function __construct(
+        private bool $spread = false,
+    ) {}
+
+    /**
+     * Call the model's query scope named after the property (camel-cased). By
+     * default the normalised value is passed as one argument, so a scope always
+     * receives exactly one caller-controlled argument regardless of input.
      *
      * @param  Builder<Model>  $query
      */
@@ -21,8 +35,12 @@ final class ScopeFilter implements Filter
     {
         $scope = Str::camel($property);
 
-        $arguments = is_array($value) ? array_values($value) : [$value];
+        if ($this->spread && is_array($value)) {
+            $query->{$scope}(...array_values($value));
 
-        $query->{$scope}(...$arguments);
+            return;
+        }
+
+        $query->{$scope}($value);
     }
 }

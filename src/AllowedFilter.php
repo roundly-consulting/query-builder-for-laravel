@@ -59,9 +59,16 @@ final class AllowedFilter
         return new self($name, $internalName ?? $name, new OperatorFilter($operator));
     }
 
-    public static function scope(string $name, ?string $internalName = null): self
+    /**
+     * Map a filter to a model query scope. By default the value is passed as a
+     * single scope argument. Pass `spread: true` only for a scope you own whose
+     * arguments should come from a comma/array value — the request then controls
+     * the argument count, so never enable it for a scope with optional
+     * column/operator parameters.
+     */
+    public static function scope(string $name, ?string $internalName = null, bool $spread = false): self
     {
-        return new self($name, $internalName ?? $name, new ScopeFilter);
+        return new self($name, $internalName ?? $name, new ScopeFilter($spread));
     }
 
     /**

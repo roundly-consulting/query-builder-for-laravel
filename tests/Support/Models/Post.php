@@ -50,4 +50,17 @@ final class Post extends Model
     {
         $query->where('status', $published ? 'published' : 'draft');
     }
+
+    /**
+     * A single-argument scope whose one parameter is a list of titles. It lets a
+     * test assert that a comma/array filter value arrives as one array argument,
+     * never spread into several positional arguments.
+     *
+     * @param  Builder<Post>  $query
+     * @param  string|list<string>  $titles
+     */
+    public function scopeTitles(Builder $query, string|array $titles): void
+    {
+        $query->whereIn('title', (array) $titles);
+    }
 }

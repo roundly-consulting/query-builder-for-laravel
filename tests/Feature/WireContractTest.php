@@ -54,17 +54,30 @@ it('turns a comma exact list into a whereIn', function (): void {
     expect($result->pluck('title')->all())->toBe(['A', 'C']);
 });
 
-// B3 — scope arg spread: comma list spreads, scalar (bool) passes as one arg.
-it('spreads a comma scope value across scope arguments', function (): void {
+// B3 — scope arg spread is opt-in: with spread:true a comma list spreads across
+// the scope arguments; by default it arrives as a single array argument.
+it('spreads a comma scope value across scope arguments when opted in', function (): void {
     Post::create(['title' => 'Small', 'views' => 3]);
     Post::create(['title' => 'Mid', 'views' => 30]);
     Post::create(['title' => 'Big', 'views' => 300]);
 
     $result = wire('/?filter[views_between]=10,100')
-        ->allowedFilters(AllowedFilter::scope('views_between'))
+        ->allowedFilters(AllowedFilter::scope('views_between', spread: true))
         ->get();
 
     expect($result->pluck('title')->all())->toBe(['Mid']);
+});
+
+it('passes a comma scope value as one argument by default', function (): void {
+    Post::create(['title' => 'A']);
+    Post::create(['title' => 'B']);
+    Post::create(['title' => 'C']);
+
+    $result = wire('/?filter[titles]=A,C')
+        ->allowedFilters(AllowedFilter::scope('titles'))
+        ->get();
+
+    expect($result->pluck('title')->all())->toBe(['A', 'C']);
 });
 
 it('passes a scalar bool scope value as a single argument', function (): void {
