@@ -86,6 +86,21 @@ it('throws UnknownSort for an un-allow-listed sort property', function (): void 
         ->get();
 })->throws(UnknownSort::class);
 
+it('caps the reflected unknown filter keys in the 400 message', function (): void {
+    $query = collect(range(1, 8))
+        ->map(fn (int $i): string => "filter[k{$i}]=1")
+        ->implode('&');
+
+    $response = $this->getJson("/qb-posts?{$query}");
+
+    $response->assertStatus(400);
+
+    $message = $response->json('message');
+
+    expect($message)->toContain('…and 3 more')
+        ->and(substr_count((string) $message, 'k'))->toBe(5);
+});
+
 it('translates the error message for the active locale', function (): void {
     app('translator')->addLines([
         'errors.unknown_filter' => 'Nope: :unknown (allowed :allowed)',

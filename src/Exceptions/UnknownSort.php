@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\QueryBuilder\Exceptions;
 
+use RoundlyConsulting\QueryBuilder\Support\KeyList;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 final class UnknownSort extends HttpException implements QueryBuilderException
@@ -15,7 +16,7 @@ final class UnknownSort extends HttpException implements QueryBuilderException
     public static function make(array $unknown, array $allowed): self
     {
         $message = (string) trans('query-builder::errors.unknown_sort', [
-            'unknown' => implode(', ', $unknown),
+            'unknown' => KeyList::summarize($unknown),
             'allowed' => implode(', ', $allowed),
         ]);
 
