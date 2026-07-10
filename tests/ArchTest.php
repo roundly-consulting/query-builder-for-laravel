@@ -2,9 +2,23 @@
 
 declare(strict_types=1);
 
-arch('src does not depend on acme')
+// Allow-listing the permitted vendor roots (Laravel/Symfony, our own Enums helper,
+// PHP built-ins) bans every other third-party vendor implicitly — none is named.
+arch('src only uses allowed vendor roots')
     ->expect('RoundlyConsulting\QueryBuilder')
-    ->not->toUse('Acme');
+    ->toOnlyUse([
+        'RoundlyConsulting\QueryBuilder',
+        'RoundlyConsulting\Enums',
+        'Illuminate',
+        'Symfony\Component\HttpKernel\Exception\HttpException',
+        'Closure',
+        // native helpers used unqualified
+        'config',
+        'config_path',
+        'request',
+        'trans',
+        'value',
+    ]);
 
 arch('src declares strict types')
     ->expect('RoundlyConsulting\QueryBuilder')
