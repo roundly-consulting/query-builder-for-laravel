@@ -54,6 +54,12 @@ return [
         'unknown_filter' => 'reject',
         'unknown_sort'   => 'reject',
     ],
+
+    'limits' => [
+        'max_filter_values' => 50,   // most comma/array items per filter value
+        'max_value_length'  => 255,  // most characters per individual value
+        'max_sorts'         => 5,    // most sort columns (after de-duplication)
+    ],
 ];
 ```
 
@@ -67,6 +73,9 @@ return [
 | `pagination.max_per_page` | int | `100` | Upper bound — `per_page` above it is a 422; also a hard cap. |
 | `mode.unknown_filter` | string | `reject` | `reject` (HTTP 400) or `ignore` (drop the key) for un-allow-listed filters. |
 | `mode.unknown_sort` | string | `reject` | `reject` (HTTP 400) or `ignore` (drop the key) for un-allow-listed sorts. |
+| `limits.max_filter_values` | int | `50` | Comma/array items kept per filter value; extras are dropped (DoS guard). |
+| `limits.max_value_length` | int | `255` | Characters kept per individual filter value; longer values are truncated. |
+| `limits.max_sorts` | int | `5` | Sort columns applied, after duplicates are removed keeping the first. |
 
 The package works with zero host configuration — the shipped defaults are the intended wire
 contract.
@@ -104,11 +113,12 @@ it reads from (defaults to the current `request()`).
 | Constructor | Request | Effect |
 |---|---|---|
 | `AllowedFilter::exact('status')` | `filter[status]=published` | `where('status', 'published')`; a comma list becomes `whereIn`. |
-| `AllowedFilter::partial('title')` | `filter[title]=hello` | Case-insensitive `LIKE` contains (`%hello%`), portable across sqlite/mysql/pgsql, with `%`/`_` escaped. |
+| `AllowedFilter::partial('title')` | `filter[title]=hello` | Case-insensitive `LIKE` contains (`%hello%`), portable across sqlite/mysql/pgsql, with `%`/`_` escaped via an explicit `ESCAPE '\'` clause. |
 | `AllowedFilter::beginsWith('code')` | `filter[code]=SKU` | Anchored prefix `LIKE` (`SKU%`), escaped and case-insensitive. |
 | `AllowedFilter::endsWith('code')` | `filter[code]=-01` | Anchored suffix `LIKE` (`%-01`), escaped and case-insensitive. |
 | `AllowedFilter::operator('min_views', FilterOperator::GreaterThanOrEqual, 'views')` | `filter[min_views]=10` | Fixed comparison `where('views', '>=', 10)`; a comma list becomes a grouped `OR`. |
-| `AllowedFilter::scope('published')` | `filter[published]=1` | Calls the model scope `scopePublished(...)`; an array value is spread as scope arguments. |
+| `AllowedFilter::scope('published')` | `filter[published]=1` | Calls the model scope `scopePublished(...)`; the value is passed as **one** argument. |
+| `AllowedFilter::scope('between', spread: true)` | `filter[between]=10,100` | Calls the scope with the array **spread** across its arguments (opt-in — see below). |
 | `AllowedFilter::callback('min_views', $cb)` | `filter[min_views]=10` | Invokes `$cb($query, $value, $name)`. |
 | `AllowedFilter::trashed()` | `filter[trashed]=with` | `with` includes trashed, `only` returns only trashed (honouring a custom soft-delete column), otherwise non-trashed (needs `SoftDeletes`). |
 | `AllowedFilter::custom('x', $filter)` | `filter[x]=…` | Runs your own `Filter` implementation. |
@@ -129,7 +139,24 @@ use RoundlyConsulting\QueryBuilder\Enums\FilterOperator;
 ```
 
 Values are normalised once before a filter runs: a comma list becomes an array, `true`/`false`
-become booleans, and one level of `filter[x][]=` array nesting is flattened.
+become booleans, and one level of `filter[x][]=` array nesting is flattened. To keep a request
+from turning into an expensive query, filter values are also bounded by the `limits.*` config —
+excess comma/array items and over-long values are dropped/truncated, and duplicate sort columns
+are removed.
+
+**Scope spreading is opt-in.** By default a scope filter passes the (normalised) value as a
+**single** argument — `filter[published]=a,b` calls `scopePublished($query, ['a', 'b'])`. This
+stops the request from controlling how many arguments a scope receives, which could otherwise
+inject an optional column/operator parameter of a scope with a signature like
+`scopeSearch($q, $term, $column = 'title')`. Enable spreading only for a scope you own whose
+arguments map to a comma/array value:
+
+```php
+// Post::scopeViewsBetween(Builder $query, int $min, int $max)
+->allowedFilters(
+    AllowedFilter::scope('views_between', spread: true), // filter[views_between]=10,100
+)
+```
 
 ### Sorts
 
@@ -184,7 +211,7 @@ hard-caps at `max_per_page` and falls back to `default_per_page` as defence in d
 | Multi-value filter | `filter[<name>]=a,b,c` | Comma-split → array; `exact` → `whereIn`. |
 | Boolean filter value | `filter[<name>]=true` / `false` | Cast to a PHP bool before the filter runs. |
 | Sort asc / desc | `sort=field` / `sort=-field` | Leading `-` = descending. |
-| Multi-sort | `sort=-created_at,name` | Comma list, applied left → right. |
+| Multi-sort | `sort=-created_at,name` | Comma list, applied left → right; duplicate columns collapse to the first, capped by `limits.max_sorts`. |
 | Pagination | `page=<n>` & `per_page=<n>` | Laravel paginator names; `per_page` validated by `HasPageSize`. |
 | Unknown filter/sort key | any key not allow-listed | HTTP 400 (or dropped in `ignore` mode). |
 | Invalid `per_page` | `> max`, `< 1`, non-integer | HTTP 422. |
@@ -193,8 +220,10 @@ hard-caps at `max_per_page` and falls back to `default_per_page` as defence in d
 
 Requesting a filter or sort that is not allow-listed throws `UnknownFilter` / `UnknownSort`,
 both `Symfony` HTTP exceptions with a **400** status and a translatable message
-(`query-builder::errors.*`). Set `mode.unknown_filter` or `mode.unknown_sort` to `ignore` to
-silently drop the offending key and apply only the allow-listed ones instead.
+(`query-builder::errors.*`). The reflected key names are capped (first few, each truncated,
+with an "…and N more" suffix) so attacker-controlled keys can't flood the response or logs.
+Set `mode.unknown_filter` or `mode.unknown_sort` to `ignore` to silently drop the offending
+key and apply only the allow-listed ones instead.
 
 ### Custom filters and sorts
 
