@@ -67,6 +67,55 @@ it('skips empty tokens in the sort string', function (): void {
         ->and($sorts[0]->property)->toBe('name');
 });
 
+it('caps the number of comma-separated filter values', function (): void {
+    config()->set('query-builder.limits.max_filter_values', 3);
+
+    $request = qbRequest('/?filter[status]=a,b,c,d,e');
+
+    expect($request->filters())->toBe(['status' => ['a', 'b', 'c']]);
+});
+
+it('caps the number of array filter values', function (): void {
+    config()->set('query-builder.limits.max_filter_values', 2);
+
+    $request = qbRequest('/?filter[id][]=1&filter[id][]=2&filter[id][]=3');
+
+    expect($request->filters())->toBe(['id' => ['1', '2']]);
+});
+
+it('caps the length of a scalar filter value', function (): void {
+    config()->set('query-builder.limits.max_value_length', 5);
+
+    expect(qbRequest('/?filter[title]=abcdefghij')->filters())
+        ->toBe(['title' => 'abcde']);
+});
+
+it('caps the length of each value in a list', function (): void {
+    config()->set('query-builder.limits.max_value_length', 3);
+
+    expect(qbRequest('/?filter[title]=abcdef,ghijkl')->filters())
+        ->toBe(['title' => ['abc', 'ghi']]);
+});
+
+it('caps the number of applied sorts', function (): void {
+    config()->set('query-builder.limits.max_sorts', 2);
+
+    $sorts = qbRequest('/?sort=a,b,c,d')->sorts();
+
+    expect($sorts)->toHaveCount(2)
+        ->and($sorts[0]->property)->toBe('a')
+        ->and($sorts[1]->property)->toBe('b');
+});
+
+it('deduplicates repeated sort tokens keeping the first occurrence', function (): void {
+    $sorts = qbRequest('/?sort=views,-views,name,views')->sorts();
+
+    expect($sorts)->toHaveCount(2)
+        ->and($sorts[0]->property)->toBe('views')
+        ->and($sorts[0]->direction)->toBe(SortDirection::Ascending)
+        ->and($sorts[1]->property)->toBe('name');
+});
+
 it('honours custom configured parameter names', function (): void {
     config()->set('query-builder.parameters.filter', 'where');
     config()->set('query-builder.parameters.sort', 'order');

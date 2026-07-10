@@ -63,16 +63,31 @@ final class QueryBuilderRequest
         }
 
         $sorts = [];
+        $seen = [];
 
         foreach (explode(',', $raw) as $token) {
             if ($token === '') {
                 continue;
             }
 
+            $property = ltrim($token, '-');
+
+            // Keep the first occurrence only: a repeated sort token would
+            // otherwise append another ORDER BY for the same column.
+            if (isset($seen[$property])) {
+                continue;
+            }
+
+            $seen[$property] = true;
+
             $sorts[] = new SortParameter(
-                property: ltrim($token, '-'),
+                property: $property,
                 direction: SortDirection::fromToken($token),
             );
+
+            if (count($sorts) >= $this->maxSorts()) {
+                break;
+            }
         }
 
         return $sorts;
@@ -111,10 +126,46 @@ final class QueryBuilderRequest
                 $flattened[] = $normalized;
             }
 
-            return $flattened;
+            return $this->capValues($flattened);
         }
 
-        return $this->normalizeScalar(is_scalar($value) ? (string) $value : '');
+        $normalized = $this->normalizeScalar(is_scalar($value) ? (string) $value : '');
+
+        return is_array($normalized) ? $this->capValues($normalized) : $this->capScalar($normalized);
+    }
+
+    /**
+     * Bound the request-driven work: cap the number of values and the length of
+     * each so a cheap query string can't blow up into an expensive query.
+     *
+     * @param  list<bool|string>  $values
+     * @return list<bool|string>
+     */
+    private function capValues(array $values): array
+    {
+        $capped = array_slice($values, 0, $this->maxFilterValues());
+
+        return array_map($this->capScalar(...), $capped);
+    }
+
+    private function capScalar(bool|string $value): bool|string
+    {
+        return is_string($value) ? mb_substr($value, 0, $this->maxValueLength()) : $value;
+    }
+
+    private function maxFilterValues(): int
+    {
+        return max(1, (int) config('query-builder.limits.max_filter_values', 50));
+    }
+
+    private function maxValueLength(): int
+    {
+        return max(1, (int) config('query-builder.limits.max_value_length', 255));
+    }
+
+    private function maxSorts(): int
+    {
+        return max(1, (int) config('query-builder.limits.max_sorts', 5));
     }
 
     /**

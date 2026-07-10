@@ -59,4 +59,24 @@ return [
         'unknown_sort' => 'reject',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Request limits (DoS hardening)
+    |--------------------------------------------------------------------------
+    |
+    | Caps on request-driven work so a cheap query string can't be turned into
+    | an expensive query. Values above these limits are truncated (never grown):
+    |
+    |   max_filter_values => most comma/array items honoured per filter value
+    |   max_value_length  => most characters kept per individual filter value
+    |   max_sorts         => most sort columns applied (after de-duplication)
+    |
+    */
+
+    'limits' => [
+        'max_filter_values' => 50,
+        'max_value_length' => 255,
+        'max_sorts' => 5,
+    ],
+
 ];
