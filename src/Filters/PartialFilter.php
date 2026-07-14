@@ -6,8 +6,9 @@ namespace RoundlyConsulting\QueryBuilder\Filters;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use RoundlyConsulting\PackageToolkit\Enums\DatabaseDriver;
+use RoundlyConsulting\PackageToolkit\Support\LikeEscaper;
 use RoundlyConsulting\QueryBuilder\Contracts\Filter;
-use RoundlyConsulting\QueryBuilder\Support\LikeEscaper;
 use RoundlyConsulting\QueryBuilder\Support\RawExpression;
 
 final readonly class PartialFilter implements Filter
@@ -42,7 +43,7 @@ final readonly class PartialFilter implements Filter
         $prefix = $this->leadingWildcard ? '%' : '';
         $suffix = $this->trailingWildcard ? '%' : '';
 
-        $operator = $query->getModel()->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+        $operator = $this->isPgsql($query) ? 'ilike' : 'like';
         $column = $query->getQuery()->getGrammar()->wrap($property);
 
         // Raw so we can attach an explicit `ESCAPE '\'` clause the query builder
@@ -58,5 +59,24 @@ final readonly class PartialFilter implements Filter
                 $query->whereRaw($condition, [$needle, '\\'], 'or');
             }
         });
+    }
+
+    /**
+     * Whether the query's connection speaks Postgres (the only driver with a
+     * native case-insensitive `ILIKE`).
+     *
+     * `DatabaseDriver::tryFrom()`, not `::current()`: the toolkit's enum models
+     * the four drivers a package may special-case and `current()` *throws* for
+     * anything else. A filter runs inside a request, so an unmodelled driver
+     * (`sqlsrv`, a host's custom connection) must degrade to the portable
+     * `like` — as it always has — never turn a working list endpoint into a 500.
+     *
+     * @param  Builder<Model>  $query
+     */
+    private function isPgsql(Builder $query): bool
+    {
+        $driver = DatabaseDriver::tryFrom($query->getModel()->getConnection()->getDriverName());
+
+        return $driver?->isPgsql() ?? false;
     }
 }
