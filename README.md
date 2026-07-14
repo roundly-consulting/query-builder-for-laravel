@@ -17,7 +17,8 @@ dependencies beyond Laravel, Symfony, and our own enums package.
 - PHP `^8.4`
 - Laravel `^12.0` or `^13.0`
 - [`roundly-consulting/enums-for-laravel`](https://github.com/roundly-consulting/enums-for-laravel)
-  (installed automatically as a dependency)
+  and [`roundly-consulting/package-toolkit-for-laravel`](https://github.com/roundly-consulting/package-toolkit-for-laravel)
+  (installed automatically as dependencies)
 
 ## Installation
 
@@ -31,6 +32,15 @@ builder the host application owns. Optionally publish the config file:
 ```bash
 php artisan vendor:publish --tag="query-builder-config"
 ```
+
+The error messages are translatable; publish them to override the wording:
+
+```bash
+php artisan vendor:publish --tag="query-builder-translations"
+```
+
+`php artisan about --only=query-builder` prints the wire contract the package is
+currently serving (parameter names, page-size bounds, unknown-parameter modes, limits).
 
 ## Configuration
 
@@ -67,7 +77,7 @@ return [
 |---|---|---|---|
 | `parameters.filter` | string | `filter` | Query-string key that holds the filter bag. |
 | `parameters.sort` | string | `sort` | Query-string key that holds the sort string. |
-| `pagination.page_name` | string | `page` | Paginator page parameter name. |
+| `pagination.page_name` | string | `page` | Paginator page parameter name — applied automatically when you `paginate()`/`simplePaginate()` a `QueryBuilder`, and readable from a `HasPageSize` request via `pageName()`. |
 | `pagination.per_page_name` | string | `per_page` | Page-size parameter name (used by `HasPageSize`). |
 | `pagination.default_per_page` | int | `20` | Page size used when `per_page` is absent or invalid. |
 | `pagination.max_per_page` | int | `100` | Upper bound — `per_page` above it is a 422; also a hard cap. |
@@ -202,6 +212,11 @@ $posts = QueryBuilder::for(Post::class)
 
 `per_page` above `max_per_page`, below 1, or non-integer yields a **422**; `perPage()` also
 hard-caps at `max_per_page` and falls back to `default_per_page` as defence in depth.
+
+`paginate()` / `simplePaginate()` on a `QueryBuilder` are handed the configured
+`pagination.page_name` automatically, so renaming the page parameter in config is honoured
+on the wire (`?p=2`) and in the generated links. Pass `pageName:` yourself to override it,
+or read it from the request (`$request->pageName()`) when you build a paginator by hand.
 
 ### Frozen wire contract
 
