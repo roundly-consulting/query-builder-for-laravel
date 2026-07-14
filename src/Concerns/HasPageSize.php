@@ -43,6 +43,16 @@ trait HasPageSize
         return min($value, $this->maxPerPage());
     }
 
+    /**
+     * The configured paginator page parameter name — pass it to a paginator you
+     * build by hand (`->paginate($request->perPage(), pageName: $request->pageName())`).
+     * `QueryBuilder` applies it for you.
+     */
+    public function pageName(): string
+    {
+        return (string) config('query-builder.pagination.page_name', 'page');
+    }
+
     private function perPageName(): string
     {
         return (string) config('query-builder.pagination.per_page_name', 'per_page');

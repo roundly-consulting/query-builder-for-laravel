@@ -97,15 +97,41 @@ final class QueryBuilder
     }
 
     /**
-     * @param  array<int, mixed>  $arguments
+     * @param  array<array-key, mixed>  $arguments
      */
     public function __call(string $name, array $arguments): mixed
     {
         $this->applyOnce();
 
+        if ($name === 'paginate' || $name === 'simplePaginate') {
+            $arguments = $this->withConfiguredPageName($arguments);
+        }
+
         $result = $this->subject->{$name}(...$arguments);
 
         return $result instanceof BuilderContract ? $this : $result;
+    }
+
+    /**
+     * Hand the paginator the configured page parameter name, so a host that
+     * renames it in config gets it honoured on the wire (links, `?page=`) —
+     * the shipped default is Laravel's own `page`, so nothing changes unless it
+     * is configured. A caller that names the page itself still wins.
+     *
+     * @param  array<array-key, mixed>  $arguments
+     * @return array<array-key, mixed>
+     */
+    private function withConfiguredPageName(array $arguments): array
+    {
+        // `paginate($perPage, $columns, $pageName, $page)` — a third positional
+        // argument is already the page name.
+        if (array_key_exists('pageName', $arguments) || array_key_exists(2, $arguments)) {
+            return $arguments;
+        }
+
+        $arguments['pageName'] = (string) config('query-builder.pagination.page_name', 'page');
+
+        return $arguments;
     }
 
     private function applyOnce(): void
@@ -129,7 +155,7 @@ final class QueryBuilder
             array_keys($this->allowedFilters),
         ));
 
-        if ($unknown !== [] && $this->mode('unknown_filter') === UnknownParameterMode::Reject) {
+        if ($unknown !== [] && $this->mode('query-builder.mode.unknown_filter') === UnknownParameterMode::Reject) {
             throw UnknownFilter::make($unknown, array_keys($this->allowedFilters));
         }
 
@@ -155,7 +181,7 @@ final class QueryBuilder
             array_keys($this->allowedSorts),
         ));
 
-        if ($unknown !== [] && $this->mode('unknown_sort') === UnknownParameterMode::Reject) {
+        if ($unknown !== [] && $this->mode('query-builder.mode.unknown_sort') === UnknownParameterMode::Reject) {
             throw UnknownSort::make($unknown, array_keys($this->allowedSorts));
         }
 
@@ -192,12 +218,16 @@ final class QueryBuilder
         }
     }
 
+    /**
+     * The mode configured under a full config key (passed whole, so every key
+     * this package reads is a real string literal a config audit can find).
+     */
     private function mode(string $key): UnknownParameterMode
     {
         // Fail closed: an invalid/typo'd config value falls back to the secure
         // Reject default rather than throwing a ValueError (uncaught 500).
         return UnknownParameterMode::tryFrom(
-            (string) config("query-builder.mode.{$key}", 'reject'),
+            (string) config($key, 'reject'),
         ) ?? UnknownParameterMode::Reject;
     }
 }
