@@ -4,23 +4,50 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\QueryBuilder;
 
-use Illuminate\Support\ServiceProvider;
+use RoundlyConsulting\PackageToolkit\Package;
+use RoundlyConsulting\PackageToolkit\PackageServiceProvider;
 
-final class QueryBuilderServiceProvider extends ServiceProvider
+final class QueryBuilderServiceProvider extends PackageServiceProvider
 {
-    public function register(): void
+    public function configurePackage(Package $package): void
     {
-        $this->mergeConfigFrom(__DIR__.'/../config/query-builder.php', 'query-builder');
+        $package
+            ->name('query-builder')
+            ->hasConfigFile()
+            ->hasTranslations()
+            ->contributesToAbout($this->aboutData(...));
     }
 
-    public function boot(): void
+    /**
+     * The `about` payload. Nothing here is a secret: this package's config *is*
+     * the public wire contract a client already sends, so the parameter names,
+     * bounds and modes render plainly.
+     *
+     * @return array<string, string>
+     */
+    private function aboutData(): array
     {
-        $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'query-builder');
-
-        if ($this->app->runningInConsole()) {
-            $this->publishes([
-                __DIR__.'/../config/query-builder.php' => config_path('query-builder.php'),
-            ], 'query-builder-config');
-        }
+        return [
+            'Filter parameter' => (string) config('query-builder.parameters.filter', 'filter'),
+            'Sort parameter' => (string) config('query-builder.parameters.sort', 'sort'),
+            'Page parameters' => sprintf(
+                '%s / %s',
+                (string) config('query-builder.pagination.page_name', 'page'),
+                (string) config('query-builder.pagination.per_page_name', 'per_page'),
+            ),
+            'Page size' => sprintf(
+                '%d default, %d max',
+                (int) config('query-builder.pagination.default_per_page', 20),
+                (int) config('query-builder.pagination.max_per_page', 100),
+            ),
+            'Unknown filter' => strtoupper((string) config('query-builder.mode.unknown_filter', 'reject')),
+            'Unknown sort' => strtoupper((string) config('query-builder.mode.unknown_sort', 'reject')),
+            'Request limits' => sprintf(
+                '%d value(s), %d char(s), %d sort(s)',
+                (int) config('query-builder.limits.max_filter_values', 50),
+                (int) config('query-builder.limits.max_value_length', 255),
+                (int) config('query-builder.limits.max_sorts', 5),
+            ),
+        ];
     }
 }

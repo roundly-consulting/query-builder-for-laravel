@@ -9,6 +9,7 @@ arch('src only uses allowed vendor roots')
     ->toOnlyUse([
         'RoundlyConsulting\QueryBuilder',
         'RoundlyConsulting\Enums',
+        'RoundlyConsulting\PackageToolkit',
         'Illuminate',
         'Symfony\Component\HttpKernel\Exception\HttpException',
         'Closure',
