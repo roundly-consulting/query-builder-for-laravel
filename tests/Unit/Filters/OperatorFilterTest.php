@@ -17,7 +17,7 @@ it('applies each operator with a bound scalar value', function (FilterOperator $
     (new OperatorFilter($operator))->apply($query, 10, 'views');
 
     expect($query->getBindings())->toBe([10])
-        ->and($query->toSql())->toContain('"views" '.$operator->value.' ?')
+        ->and($query->toSql())->toContain(wrapped('views').' '.$operator->value.' ?')
         ->and($query->pluck('title')->all())->toBe($expected);
 })->with([
     'gte' => [FilterOperator::GreaterThanOrEqual, ['Mid', 'High']],

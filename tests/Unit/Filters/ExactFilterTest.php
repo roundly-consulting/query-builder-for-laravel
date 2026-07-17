@@ -15,7 +15,7 @@ it('matches a scalar value with an equality clause', function (): void {
     $query = Post::query();
     (new ExactFilter)->apply($query, 'published', 'status');
 
-    expect($query->toSql())->toContain('"status" = ?')
+    expect($query->toSql())->toContain(wrapped('status').' = ?')
         ->and($query->getBindings())->toBe(['published'])
         ->and($query->pluck('title')->all())->toBe(['A']);
 });
@@ -24,7 +24,7 @@ it('matches an array value with a whereIn clause', function (): void {
     $query = Post::query();
     (new ExactFilter)->apply($query, ['published', 'archived'], 'status');
 
-    expect($query->toSql())->toContain('"status" in (?, ?)')
+    expect($query->toSql())->toContain(wrapped('status').' in (?, ?)')
         ->and($query->pluck('title')->all())->toBe(['A', 'C']);
 });
 

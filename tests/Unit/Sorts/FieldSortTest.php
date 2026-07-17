@@ -10,14 +10,14 @@ it('orders ascending', function (): void {
     $query = Post::query();
     (new FieldSort)->apply($query, SortDirection::Ascending, 'title');
 
-    expect($query->toSql())->toContain('order by "title" asc');
+    expect($query->toSql())->toContain('order by '.wrapped('title').' asc');
 });
 
 it('orders descending', function (): void {
     $query = Post::query();
     (new FieldSort)->apply($query, SortDirection::Descending, 'title');
 
-    expect($query->toSql())->toContain('order by "title" desc');
+    expect($query->toSql())->toContain('order by '.wrapped('title').' desc');
 });
 
 it('sorts rows in the requested order', function (): void {

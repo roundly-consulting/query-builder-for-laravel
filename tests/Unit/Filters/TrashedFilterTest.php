@@ -41,7 +41,7 @@ it('uses the model custom soft-delete column for only mode', function (): void {
     $query = ArchivedPost::query();
     (new TrashedFilter)->apply($query, 'only', 'trashed');
 
-    expect($query->toSql())->toContain('"archived_at" is not null')
+    expect($query->toSql())->toContain(wrapped('archived_at').' is not null')
         ->and($query->toSql())->not->toContain('deleted_at')
         ->and($query->pluck('title')->all())->toBe(['Archived']);
 });
@@ -50,5 +50,5 @@ it('falls back to the default deleted_at column without the soft-delete trait', 
     $query = Author::query();
     (new TrashedFilter)->apply($query, 'only', 'trashed');
 
-    expect($query->toSql())->toContain('"authors"."deleted_at" is not null');
+    expect($query->toSql())->toContain(wrapped('authors.deleted_at').' is not null');
 });
