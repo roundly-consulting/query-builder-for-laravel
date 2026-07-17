@@ -33,6 +33,6 @@ it('groups an array value into an OR of the comparison', function (): void {
     (new OperatorFilter(FilterOperator::GreaterThanOrEqual))->apply($query, [5, 20], 'views');
 
     expect($query->getBindings())->toBe([5, 20])
-        ->and($query->toSql())->toContain('("views" >= ? or "views" >= ?)')
+        ->and($query->toSql())->toContain('('.wrapped('views').' >= ? or '.wrapped('views').' >= ?)')
         ->and($query->pluck('title')->all())->toBe(['Low', 'Mid', 'High']);
 });
