@@ -2,122 +2,42 @@
 
 declare(strict_types=1);
 
-use Illuminate\Support\Arr;
-
 /**
  * The config-key contract, pinned in BOTH directions:
  *
- *   forward — every key the source reads must exist in the shipped config file
- *             (a key the code reads but the package never ships is unreachable);
- *   reverse — every key the config file ships must be read by the source
- *             (a key the package ships but nothing reads is a documented
- *             feature that silently does nothing).
+ *   forward — every key the source reads must exist in the shipped config file (a key the
+ *             code reads but the package never ships is unreachable). This is shops #18.
+ *   reverse — every leaf the config file ships must be read by the source (a key the package
+ *             ships but nothing reads is a documented feature that silently does nothing).
+ *             **This is the direction that found query-builder's own bug #32.**
  *
- * Keys are scraped from real string TOKENS, never the file text — a docblock
- * mentioning a key is not a read.
- */
-function shippedConfig(): array
-{
-    return require dirname(__DIR__, 2).'/config/query-builder.php';
-}
-
-/**
- * @return list<string>
- */
-function sourceFiles(): array
-{
-    $files = [];
-
-    /** @var Iterator<string, SplFileInfo> $iterator */
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator(dirname(__DIR__, 2).'/src'),
-    );
-
-    foreach ($iterator as $file) {
-        if ($file->isFile() && $file->getExtension() === 'php') {
-            $files[] = $file->getPathname();
-        }
-    }
-
-    sort($files);
-
-    return $files;
-}
-
-/**
- * Every `query-builder.*` key named by a string literal in `src/`.
+ * This replaces ~120 lines of hand-rolled contract — a local scraper, a
+ * RecursiveDirectoryIterator, a `Arr::dot()` walk and an interpolation guard — with the
+ * shipped expectation. It is not a like-for-like rewrite; the preset is stronger on the two
+ * points the local version had to get right by hand:
  *
- * `$behaviourOnly` drops the service provider, whose `about` payload *renders*
- * every key. Displaying a value is not applying it — without this the reverse
- * direction below would pass for a key nothing but `php artisan about` reads.
- *
- * @return list<string>
+ *  - it scrapes **source tokens**, so a docblock mentioning a key is a comment token and
+ *    never a read (media #27's near-miss: a regex over raw text stayed green with the fix
+ *    reverted);
+ *  - it **flags** an interpolated key under the prefix rather than silently ignoring it, so
+ *    the guard the local file wrote by hand is part of the assertion instead of a separate
+ *    test that could be deleted without anything noticing.
  */
-function configKeysReadBySource(bool $behaviourOnly = false): array
-{
-    $keys = [];
-
-    foreach (sourceFiles() as $file) {
-        if ($behaviourOnly && str_ends_with($file, 'QueryBuilderServiceProvider.php')) {
-            continue;
-        }
-
-        foreach (token_get_all((string) file_get_contents($file)) as $token) {
-            if (! is_array($token) || $token[0] !== T_CONSTANT_ENCAPSED_STRING) {
-                continue;
-            }
-
-            $literal = trim($token[1], "'\"");
-
-            if (preg_match('/^query-builder\.[a-z0-9_.]+$/', $literal) === 1) {
-                $keys[$literal] = true;
-            }
-        }
-    }
-
-    $keys = array_keys($keys);
-    sort($keys);
-
-    return $keys;
-}
-
-it('scrapes the config keys the source actually reads', function (): void {
-    // Guard the guard: an empty (or text-matched) scrape would make both
-    // directions below pass vacuously.
-    expect(configKeysReadBySource())
-        ->not->toBeEmpty()
-        ->toContain('query-builder.parameters.filter')
-        ->toContain('query-builder.mode.unknown_filter');
-});
-
-it('ships every config key the source reads', function (): void {
-    $config = shippedConfig();
-
-    foreach (configKeysReadBySource() as $key) {
-        $relative = substr($key, strlen('query-builder.'));
-
-        expect(Arr::has($config, $relative))->toBeTrue(
-            "The source reads [{$key}], which config/query-builder.php does not ship.",
-        );
-    }
-});
-
-it('reads every config key it ships', function (): void {
-    $read = configKeysReadBySource(behaviourOnly: true);
-
-    foreach (array_keys(Arr::dot(shippedConfig())) as $leaf) {
-        expect(in_array("query-builder.{$leaf}", $read, true))->toBeTrue(
-            "config/query-builder.php ships [{$leaf}], which no line of src/ ever reads.",
-        );
-    }
-});
-
-it('never hides a config key behind string interpolation', function (): void {
-    // An interpolated key ("query-builder.mode.{$name}") is invisible to the
-    // scrape above, which would blind both directions of this contract.
-    foreach (sourceFiles() as $file) {
-        $source = (string) file_get_contents($file);
-
-        expect($source)->not->toMatch('/"query-builder\.[^"]*\{\$/');
-    }
+it('ships exactly the config keys it reads', function (): void {
+    expect(__DIR__.'/../../config/query-builder.php')->toSatisfyConfigContract(__DIR__.'/../../src', [
+        // No `excludeFromReverse` for the provider — a deliberate departure from the local
+        // version this replaces, which dropped the provider from the reverse direction on
+        // the grounds that its `about` payload renders every key and "displaying a value is
+        // not applying it".
+        //
+        // That reasoning is sound in the abstract and wrong for our provider shape: the
+        // toolkit's PackageServiceProvider both renders (`contributesToAbout()`) and does
+        // real reads (`bindFromConfig()`) from the same file, so excluding it discards the
+        // only reader of every bound key and weakens the reverse direction rather than
+        // sharpening it. The keys that were only ever *rendered* are covered because the
+        // parameters, bounds and modes below are all read by the request/filter code too —
+        // which is the point: if a key is genuinely read nowhere but `about`, that is bug
+        // #32 again and this should say so.
+        'extraReadPrefixes' => ['query-builder.'],
+    ]);
 });

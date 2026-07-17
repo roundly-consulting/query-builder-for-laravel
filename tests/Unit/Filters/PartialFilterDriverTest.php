@@ -25,6 +25,19 @@ function partialSqlOn(string $connection): string
 }
 
 beforeEach(function (): void {
+    // A sqlite probe, for the same reason as the two below: this file pins which operator
+    // each driver *compiles to*, so each driver needs a connection of its own that says what
+    // it is. The sqlite case used to compile against the default `testing` connection and
+    // assert it produced `like` — which was only true because the whole suite happened to
+    // run on sqlite. On the pgsql leg `testing` IS Postgres, so that test compiled `ilike`
+    // and went red: it had never been a test of sqlite, only of "whatever the suite is
+    // running on", and its name said otherwise.
+    config()->set('database.connections.sqlite_probe', [
+        'driver' => 'sqlite',
+        'database' => ':memory:',
+        'prefix' => '',
+    ]);
+
     config()->set('database.connections.pg_probe', [
         'driver' => 'pgsql',
         'host' => '127.0.0.1',
@@ -45,6 +58,7 @@ beforeEach(function (): void {
         'prefix' => '',
     ]);
 
+    DB::purge('sqlite_probe');
     DB::purge('pg_probe');
     DB::purge('sqlsrv_probe');
 });
@@ -54,7 +68,7 @@ it('compiles a case-insensitive ilike on postgres', function (): void {
 });
 
 it('compiles a like on sqlite', function (): void {
-    expect(partialSqlOn('testing'))
+    expect(partialSqlOn('sqlite_probe'))
         ->toContain('like ? escape ?')
         ->not->toContain('ilike');
 });
