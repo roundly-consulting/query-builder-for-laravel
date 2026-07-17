@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace RoundlyConsulting\QueryBuilder\Tests;
 
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 use RoundlyConsulting\QueryBuilder\QueryBuilderServiceProvider;
@@ -38,6 +39,37 @@ abstract class TestCase extends PackageTestCase
     protected function migrationSources(): array
     {
         return [];
+    }
+
+    /**
+     * Release every PDO handle the test opened.
+     *
+     * A **second local workaround for the same testing-package gap** as the `dropIfExists`
+     * calls below, and it must go once that is fixed. `PackageTestCase`'s teardown returns
+     * early when `cachedTestMigratorProcessors === []` — which is always true here, because
+     * this package ships no migrations — so nothing tears the connection down between tests.
+     *
+     * On SQLite `:memory:` that is invisible: the database dies with the connection and
+     * nobody counts. On a real engine the handles simply accumulate, one per test, and the
+     * run dies at the server's `max_connections` with `FATAL: sorry, too many clients
+     * already` — naming an innocent query (`drop table if exists "posts"`), tens of tests
+     * after the leak started. Measured on this suite before this override: 10 -> 37 -> 73
+     * connections and then the wall, on a database nothing else was using, and identically
+     * on CI against a dedicated Postgres service.
+     *
+     * `purge()` rather than `disconnect()`: the driver tests register their own probe
+     * connections (`pg_probe`, `sqlsrv_probe`, `sqlite_probe`), and disconnecting only the
+     * default would leave those behind — which is most of the leak on a driver leg.
+     */
+    protected function tearDown(): void
+    {
+        if ($this->app !== null) {
+            foreach (array_keys(DB::getConnections()) as $name) {
+                DB::purge((string) $name);
+            }
+        }
+
+        parent::tearDown();
     }
 
     /**
