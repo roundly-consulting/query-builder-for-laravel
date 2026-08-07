@@ -91,8 +91,9 @@ jobs:
           # vars alone only say where the engine is: without the driver this job would run
           # every test on sqlite and call itself a postgres leg.
           #
-          # This package ships the fleet's only driver-DISCRIMINATING filter: PartialFilter
-          # compiles `ilike` on Postgres and `like` everywhere else. Its ilike branch had
+          # This package ships the fleet's driver-DISCRIMINATING filters: PartialFilter and
+          # NotPartialFilter compile `ilike` on Postgres and `like` everywhere else (and the
+          # negations of both). PartialFilter's ilike branch had
           # never once executed against a real engine before this leg — the suite ran on
           # sqlite for the package's whole life, so the Postgres half of its own conditional
           # was dead code as far as any test was concerned.
