@@ -9,9 +9,10 @@ use RoundlyConsulting\QueryBuilder\Tests\Support\Models\Post;
 use RoundlyConsulting\Testing\Database\DriverMatrix;
 
 /**
- * D — the driver matrix. This package ships the fleet's only driver-*discriminating* filter
- * (`PartialFilter` compiles `ilike` on Postgres and `like` everywhere else, both with an
- * explicit `ESCAPE`), which is why it is one of only two rows that runs all three engines.
+ * D — the driver matrix. This package ships the fleet's driver-*discriminating* filters
+ * (`PartialFilter` compiles `ilike` on Postgres and `like` everywhere else, `NotPartialFilter`
+ * the negations of both, all with an explicit `ESCAPE`), which is why it is one of only two
+ * rows that runs all three engines.
  *
  * `tests/Unit/Filters/PartialFilterDriverTest.php` pins which operator each driver
  * *compiles to*, without opening a connection. That is a claim about the SQL string. This

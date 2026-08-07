@@ -127,6 +127,7 @@ it reads from (defaults to the current `request()`).
 | `AllowedFilter::beginsWith('code')` | `filter[code]=SKU` | Anchored prefix `LIKE` (`SKU%`), escaped and case-insensitive. |
 | `AllowedFilter::endsWith('code')` | `filter[code]=-01` | Anchored suffix `LIKE` (`%-01`), escaped and case-insensitive. |
 | `AllowedFilter::operator('min_views', FilterOperator::GreaterThanOrEqual, 'views')` | `filter[min_views]=10` | Fixed comparison `where('views', '>=', 10)`; a comma list becomes a grouped `OR`. |
+| `AllowedFilter::operators('status', [RequestedOperator::Not])` | `filter[status]=not:draft` | The **client** picks the comparison, from the set declared here. A bare value still means equality. |
 | `AllowedFilter::scope('published')` | `filter[published]=1` | Calls the model scope `scopePublished(...)`; the value is passed as **one** argument. |
 | `AllowedFilter::scope('between', spread: true)` | `filter[between]=10,100` | Calls the scope with the array **spread** across its arguments (opt-in — see below). |
 | `AllowedFilter::callback('min_views', $cb)` | `filter[min_views]=10` | Invokes `$cb($query, $value, $name)`. |
@@ -147,6 +148,29 @@ use RoundlyConsulting\QueryBuilder\Enums\FilterOperator;
     AllowedFilter::operator('min_level', FilterOperator::GreaterThanOrEqual, 'level'),
 )
 ```
+
+`operators()` is the one constructor where a **request influences which comparison runs** — and
+it is still an allow-list decision made in code. The request supplies a *token*, not an operator:
+
+```php
+use RoundlyConsulting\QueryBuilder\Enums\RequestedOperator;
+
+->allowedFilters(
+    AllowedFilter::operators('status', [RequestedOperator::Not]),
+    AllowedFilter::operators('title', [RequestedOperator::Contains], partialByDefault: true),
+)
+```
+
+Tokens: `is` · `not` · `contains` · `ncontains` · `starts` · `gt` · `gte` · `lt` · `lte`. A token
+that is unknown, or that this filter did not declare, is **not an operator** — the whole string
+becomes the value, so `filter[status]=1=1 or 1:draft` filters for that literal text and matches
+nothing. The filter's own default (`is`, or `contains` under `partialByDefault`) is always
+nameable, so a client can switch back; nothing else is implicit. Only a known token before the
+**first** colon counts, so `filter[url]=https://example.test` still filters for itself.
+
+The operator is per **filter**, not per value: `not:draft,archived` means "neither" (`whereNotIn`,
+not a grouped OR of negations, which would match nearly every row). Both negations also include
+rows where the column is `NULL`, because "not draft" plainly includes "no status at all".
 
 Values are normalised once before a filter runs: a comma list becomes an array, `true`/`false`
 become booleans, and one level of `filter[x][]=` array nesting is flattened. To keep a request

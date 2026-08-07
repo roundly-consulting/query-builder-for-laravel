@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use RoundlyConsulting\QueryBuilder\Enums\FilterOperator;
+use RoundlyConsulting\QueryBuilder\Enums\RequestedOperator;
 use RoundlyConsulting\QueryBuilder\Enums\SortDirection;
 use RoundlyConsulting\QueryBuilder\Enums\UnknownParameterMode;
 
@@ -35,4 +36,54 @@ it('backs each filter operator with its sql comparison', function (): void {
     expect(FilterOperator::values()->all())->toBe(['=', '!=', '>', '>=', '<', '<='])
         ->and(FilterOperator::GreaterThanOrEqual->value)->toBe('>=')
         ->and(FilterOperator::count())->toBe(6);
+});
+
+it('backs each requested operator with a url token, never sql', function (): void {
+    // The whole point of the second enum: these values go in a URL, so a change here is a
+    // wire change. `FilterOperator`'s values are SQL; none of these may be.
+    expect(RequestedOperator::values()->all())
+        ->toBe(['is', 'not', 'contains', 'ncontains', 'starts', 'gt', 'gte', 'lt', 'lte'])
+        ->and(RequestedOperator::count())->toBe(9);
+});
+
+/*
+|--------------------------------------------------------------------------
+| RequestedOperator::split() — a public API for consumer callbacks
+|--------------------------------------------------------------------------
+|
+| Documented as the parse an `AllowedFilter::callback()` should reuse rather than
+| hand-roll, so it is pinned here independently of the filter that also calls it.
+*/
+
+it('splits a declared operator off the value', function (): void {
+    $parsed = RequestedOperator::split('not:draft', [RequestedOperator::Not]);
+
+    expect($parsed->operator)->toBe(RequestedOperator::Not)
+        ->and($parsed->value)->toBe('draft');
+});
+
+it('answers a null operator when the request named none', function (): void {
+    // `null` is not `Is`: only "named none" takes the caller's default, which is what lets
+    // a search field default to `contains` without `is:` becoming a free extra token.
+    $parsed = RequestedOperator::split('draft', [RequestedOperator::Not]);
+
+    expect($parsed->operator)->toBeNull()
+        ->and($parsed->value)->toBe('draft')
+        ->and($parsed->operatorOr(RequestedOperator::Contains))->toBe(RequestedOperator::Contains);
+});
+
+it('treats an undeclared or unknown token as part of the value', function (): void {
+    foreach (['contains:draft', 'nonsense:draft', '1=1 or 1:draft', 'is:draft'] as $raw) {
+        $parsed = RequestedOperator::split($raw, [RequestedOperator::Not]);
+
+        expect($parsed->operator)->toBeNull()
+            ->and($parsed->value)->toBe($raw);
+    }
+});
+
+it('only reads a token before the FIRST colon', function (): void {
+    $parsed = RequestedOperator::split('https://example.test', RequestedOperator::cases());
+
+    expect($parsed->operator)->toBeNull()
+        ->and($parsed->value)->toBe('https://example.test');
 });

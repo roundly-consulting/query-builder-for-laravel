@@ -104,6 +104,9 @@ abstract class TestCase extends PackageTestCase
             $table->id();
             $table->string('title');
             $table->string('status')->default('draft');
+            // Nullable on purpose: a `not contains` must still match a row that
+            // contains NOTHING, which is the one case SQL's `not like` gets wrong.
+            $table->string('summary')->nullable();
             $table->unsignedInteger('views')->default(0);
             $table->boolean('active')->default(false);
             $table->unsignedBigInteger('author_id')->default(0);

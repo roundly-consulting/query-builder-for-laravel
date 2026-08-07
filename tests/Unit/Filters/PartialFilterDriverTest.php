@@ -3,25 +3,41 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\DB;
+use RoundlyConsulting\QueryBuilder\Contracts\Filter;
+use RoundlyConsulting\QueryBuilder\Filters\NotPartialFilter;
 use RoundlyConsulting\QueryBuilder\Filters\PartialFilter;
 use RoundlyConsulting\QueryBuilder\Tests\Support\Models\Post;
 
 /**
- * The partial filter is the package's only driver-discriminating code: Postgres
+ * The partial filters are the package's driver-discriminating code: Postgres
  * gets a native case-insensitive `ILIKE`, every other driver a collation
  * `LIKE`. These connections are never opened — the query is compiled, not run —
  * so no server is needed to pin which operator each driver compiles to.
+ *
+ * `NotPartialFilter` is pinned alongside `PartialFilter` rather than trusted to
+ * mirror it: it is a second, independent `isPgsql()` branch and a second
+ * `escape ?` line, and "it was copied from the one next door" is not a test.
  */
-function partialSqlOn(string $connection): string
+function sqlOn(string $connection, Filter $filter): string
 {
     $post = new Post;
     $post->setConnection($connection);
 
     $query = $post->newQuery();
 
-    (new PartialFilter)->apply($query, 'world', 'title');
+    $filter->apply($query, 'world', 'title');
 
     return $query->toSql();
+}
+
+function partialSqlOn(string $connection): string
+{
+    return sqlOn($connection, new PartialFilter);
+}
+
+function notPartialSqlOn(string $connection): string
+{
+    return sqlOn($connection, new NotPartialFilter);
 }
 
 beforeEach(function (): void {
@@ -79,5 +95,17 @@ it('degrades to like on a driver the toolkit enum does not model', function (): 
     // list endpoint a host is already serving.
     expect(partialSqlOn('sqlsrv_probe'))
         ->toContain('like ? escape ?')
+        ->not->toContain('ilike');
+});
+
+it('compiles the negation the same way on every driver', function (): void {
+    expect(notPartialSqlOn('pg_probe'))->toContain('not ilike ? escape ?');
+
+    expect(notPartialSqlOn('sqlite_probe'))
+        ->toContain('not like ? escape ?')
+        ->not->toContain('ilike');
+
+    expect(notPartialSqlOn('sqlsrv_probe'))
+        ->toContain('not like ? escape ?')
         ->not->toContain('ilike');
 });
