@@ -128,6 +128,8 @@ it reads from (defaults to the current `request()`).
 | `AllowedFilter::endsWith('code')` | `filter[code]=-01` | Anchored suffix `LIKE` (`%-01`), escaped and case-insensitive. |
 | `AllowedFilter::operator('min_views', FilterOperator::GreaterThanOrEqual, 'views')` | `filter[min_views]=10` | Fixed comparison `where('views', '>=', 10)`; a comma list becomes a grouped `OR`. |
 | `AllowedFilter::operators('status', [RequestedOperator::Not])` | `filter[status]=not:draft` | The **client** picks the comparison, from the set declared here. A bare value still means equality. |
+| `AllowedFilter::nullable('project', 'project_id', FilterValueShape::Uuid)` | `filter[project]=none` | Exact match on a **nullable** column, with `none` for "unset" and `not:none` for "is set". A negation also matches the unset rows. |
+| `AllowedFilter::relation('label', 'labels', 'labels.id')` | `filter[label]=not:<id>` | Matches through a **relation** — `whereHas`, and `whereDoesntHave` for a negation. |
 | `AllowedFilter::scope('published')` | `filter[published]=1` | Calls the model scope `scopePublished(...)`; the value is passed as **one** argument. |
 | `AllowedFilter::scope('between', spread: true)` | `filter[between]=10,100` | Calls the scope with the array **spread** across its arguments (opt-in — see below). |
 | `AllowedFilter::callback('min_views', $cb)` | `filter[min_views]=10` | Invokes `$cb($query, $value, $name)`. |
@@ -171,6 +173,30 @@ nameable, so a client can switch back; nothing else is implicit. Only a known to
 The operator is per **filter**, not per value: `not:draft,archived` means "neither" (`whereNotIn`,
 not a grouped OR of negations, which would match nearly every row). Both negations also include
 rows where the column is `NULL`, because "not draft" plainly includes "no status at all".
+
+**A nullable column needs `nullable()`, not `operators()`.** The two things a person most wants
+from such a column cannot be said in a bare value — "the rows with no project" and "the rows that
+have one" — so it takes a sentinel (`none` by default, renameable) and reads its negation:
+
+```php
+use RoundlyConsulting\QueryBuilder\Enums\FilterValueShape;
+
+->allowedFilters(
+    AllowedFilter::nullable('project', 'project_id', FilterValueShape::Uuid),  // none · not:none · not:<id>
+    AllowedFilter::relation('label', 'labels', 'labels.id', FilterValueShape::Uuid),
+)
+```
+
+`relation()` is the constructor for a to-many match, and its negation is `whereDoesntHave` —
+never a negated `whereHas`, which keeps exactly the rows it should exclude (a row related to two
+labels still satisfies the subquery through the other one).
+
+**Declare a `FilterValueShape` on any typed column.** Postgres answers a value of the wrong type
+with an error rather than "no match", so `filter[project]=garbage` on a uuid column is a
+request-triggerable 500. With a shape declared, a value the column cannot hold is answered with an
+empty result (and a *negation* of one excludes nothing, since no row could have matched it). It is
+accepted by `operators()`, `nullable()` and `relation()`; the default `Text` guards nothing, so no
+existing filter changes.
 
 Values are normalised once before a filter runs: a comma list becomes an array, `true`/`false`
 become booleans, and one level of `filter[x][]=` array nesting is flattened. To keep a request

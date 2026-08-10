@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int $views
  * @property bool $active
  * @property int $author_id
+ * @property list<string> $tags
  */
 final class Post extends Model
 {
@@ -25,6 +26,7 @@ final class Post extends Model
     protected $casts = [
         'active' => 'boolean',
         'views' => 'integer',
+        'tags' => 'array',
     ];
 
     /**

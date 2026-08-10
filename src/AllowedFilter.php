@@ -9,14 +9,19 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\QueryBuilder\Contracts\Filter;
 use RoundlyConsulting\QueryBuilder\Enums\FilterOperator;
+use RoundlyConsulting\QueryBuilder\Enums\FilterValueShape;
 use RoundlyConsulting\QueryBuilder\Enums\RequestedOperator;
 use RoundlyConsulting\QueryBuilder\Filters\CallbackFilter;
 use RoundlyConsulting\QueryBuilder\Filters\ExactFilter;
+use RoundlyConsulting\QueryBuilder\Filters\JsonContainsOperatorFilter;
+use RoundlyConsulting\QueryBuilder\Filters\NullableOperatorFilter;
 use RoundlyConsulting\QueryBuilder\Filters\OperatorFilter;
 use RoundlyConsulting\QueryBuilder\Filters\PartialFilter;
+use RoundlyConsulting\QueryBuilder\Filters\RelationOperatorFilter;
 use RoundlyConsulting\QueryBuilder\Filters\RequestedOperatorFilter;
 use RoundlyConsulting\QueryBuilder\Filters\ScopeFilter;
 use RoundlyConsulting\QueryBuilder\Filters\TrashedFilter;
+use RoundlyConsulting\QueryBuilder\Support\FilterSentinel;
 
 final class AllowedFilter
 {
@@ -81,18 +86,90 @@ final class AllowedFilter
      * @param  list<RequestedOperator>  $operators
      * @param  bool  $partialByDefault  a bare value is a `contains` match rather than
      *                                  equality — for a free-text search field
+     * @param  FilterValueShape  $shape  what the column can hold; a value of another shape
+     *                                   matches nothing instead of reaching the driver
      */
     public static function operators(
         string $name,
         array $operators,
         ?string $internalName = null,
         bool $partialByDefault = false,
+        FilterValueShape $shape = FilterValueShape::Text,
     ): self {
         return new self(
             $name,
             $internalName ?? $name,
-            new RequestedOperatorFilter($operators, $partialByDefault),
+            new RequestedOperatorFilter($operators, $partialByDefault, $shape),
         );
+    }
+
+    /**
+     * Exact match on a NULLABLE column, with a sentinel for "unset" and an optional
+     * negation the client may ask for.
+     *
+     * `filter[project]=none` matches the rows with no project, `filter[project]=not:none`
+     * the rows that have one, and a negation of a real value also matches the unset rows —
+     * see {@see NullableOperatorFilter} for why none of that can be expressed by
+     * {@see self::exact()} or {@see self::operators()}.
+     *
+     * Declare the column's `$shape` whenever it is typed (a uuid or bigint key): a
+     * malformed id then answers with an empty result rather than a 500 from the driver.
+     *
+     * @param  list<RequestedOperator>  $operators
+     */
+    public static function nullable(
+        string $name,
+        ?string $internalName = null,
+        FilterValueShape $shape = FilterValueShape::Text,
+        array $operators = [RequestedOperator::Not],
+        string $sentinel = FilterSentinel::NONE,
+    ): self {
+        return new self(
+            $name,
+            $internalName ?? $name,
+            new NullableOperatorFilter($shape, $operators, $sentinel),
+        );
+    }
+
+    /**
+     * Match on a RELATION — `whereHas`, and `whereDoesntHave` for a negation.
+     *
+     * `$column` is qualified (`labels.id`) because the subquery joins another table. Use
+     * this rather than a `callback` for any to-many relation: a hand-rolled negation is
+     * almost always a negated `whereHas`, which keeps exactly the rows it should exclude
+     * ({@see RelationOperatorFilter}).
+     *
+     * Pass a `$sentinel` where "related to nothing" is a question the list asks — then
+     * `filter[department]=none` are the rows spanning no department and `not:none` the ones
+     * spanning at least one, matching what {@see self::nullable()} offers for a column.
+     *
+     * @param  list<RequestedOperator>  $operators
+     */
+    public static function relation(
+        string $name,
+        string $relation,
+        string $column,
+        FilterValueShape $shape = FilterValueShape::Text,
+        array $operators = [RequestedOperator::Not],
+        ?string $sentinel = null,
+    ): self {
+        return new self($name, $relation, new RelationOperatorFilter($column, $shape, $operators, $sentinel));
+    }
+
+    /**
+     * Membership in a JSON ARRAY column (`tags`), with an optional negation.
+     *
+     * `exact()` would compare the whole document and `partial()` would match a value
+     * inside another one — see {@see JsonContainsOperatorFilter}.
+     *
+     * @param  list<RequestedOperator>  $operators
+     */
+    public static function jsonContains(
+        string $name,
+        ?string $internalName = null,
+        array $operators = [RequestedOperator::Not],
+    ): self {
+        return new self($name, $internalName ?? $name, new JsonContainsOperatorFilter($operators));
     }
 
     /**

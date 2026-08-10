@@ -7,6 +7,8 @@ namespace RoundlyConsulting\QueryBuilder\Filters;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\QueryBuilder\Contracts\Filter;
+use RoundlyConsulting\QueryBuilder\DataTransferObjects\RequestedFilterValues;
+use RoundlyConsulting\QueryBuilder\Enums\FilterValueShape;
 use RoundlyConsulting\QueryBuilder\Enums\RequestedOperator;
 
 /**
@@ -41,9 +43,15 @@ final readonly class RequestedOperatorFilter implements Filter
      * @param  list<RequestedOperator>  $allowed  the operators this filter accepts
      * @param  bool  $partialByDefault  when true a bare value is a `contains` match
      *                                  rather than equality (a text search field)
+     * @param  FilterValueShape  $shape  what the column can hold — a value of another
+     *                                   shape matches nothing instead of reaching the
+     *                                   driver, which is a 500 on a typed column
      */
-    public function __construct(array $allowed, bool $partialByDefault = false)
-    {
+    public function __construct(
+        array $allowed,
+        bool $partialByDefault = false,
+        private FilterValueShape $shape = FilterValueShape::Text,
+    ) {
         $this->default = $partialByDefault ? RequestedOperator::Contains : RequestedOperator::Is;
 
         // The filter's OWN default is always nameable — saying it explicitly grants no
@@ -71,9 +79,12 @@ final readonly class RequestedOperatorFilter implements Filter
         // `true`/`false` to real booleans, and casting one to a string to look for a `:`
         // destroys it — `false` becomes `''`, which Postgres rejects outright on a
         // boolean column (`invalid input syntax for type boolean`) and mysql/sqlite
-        // quietly coerce to `0`. So a non-string value is forwarded exactly as received.
+        // quietly coerce to `0`. So a non-string value carries no operator and is
+        // forwarded as received — but it is still SHAPE-CHECKED, because a boolean on a
+        // uuid or bigint column is the same 500 the shape exists to prevent, reached
+        // through a door the string path does not use.
         if (! is_string($first)) {
-            $this->delegate($this->default)->apply($query, $value, $property);
+            $this->compare($query, $this->default, $this->usable($value), $property);
 
             return;
         }
@@ -81,8 +92,64 @@ final readonly class RequestedOperatorFilter implements Filter
         $parsed = RequestedOperator::split($first, $this->allowed);
         $values[0] = $parsed->value;
 
-        $this->delegate($parsed->operatorOr($this->default))
-            ->apply($query, is_array($value) ? $values : $parsed->value, $property);
+        $this->compare(
+            $query,
+            $parsed->operatorOr($this->default),
+            $this->usable(is_array($value) ? $values : $parsed->value),
+            $property,
+        );
+    }
+
+    /**
+     * Apply the operator to what survived the shape check.
+     *
+     * `null` means nothing the column could hold survived, so no row can match. A negation
+     * therefore excludes nothing, while every other operator matches nothing — and matching
+     * nothing has to be SAID (`whereIn(…, [])`), because dropping the filter would show the
+     * unfiltered list, which reads as "the filter worked and everything matched".
+     *
+     * @param  Builder<Model>  $query
+     */
+    private function compare(Builder $query, RequestedOperator $operator, mixed $usable, string $property): void
+    {
+        if ($usable === null) {
+            if (! $operator->isNegation()) {
+                $query->whereIn($property, []);
+            }
+
+            return;
+        }
+
+        $this->delegate($operator)->apply($query, $usable, $property);
+    }
+
+    /**
+     * The value narrowed to what the column can hold, or `null` when nothing survives.
+     *
+     * A no-op for the default {@see FilterValueShape::Text}, which is every filter that
+     * did not ask for a shape — so this cannot change how an existing filter behaves.
+     */
+    private function usable(mixed $value): mixed
+    {
+        if ($this->shape === FilterValueShape::Text) {
+            return $value;
+        }
+
+        $strings = array_values(array_filter(
+            array_map(
+                static fn (mixed $item): string => is_scalar($item) ? (string) $item : '',
+                is_array($value) ? $value : [$value],
+            ),
+            static fn (string $item): bool => $item !== '',
+        ));
+
+        $usable = RequestedFilterValues::matching($strings, $this->shape);
+
+        if ($usable === []) {
+            return null;
+        }
+
+        return is_array($value) ? $usable : $usable[0];
     }
 
     /** The prepared query shape for an operator. Never assembled from request text. */

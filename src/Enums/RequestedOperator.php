@@ -81,6 +81,18 @@ enum RequestedOperator: string
         return new RequestedFilterValue($operator, substr($raw, $position + 1));
     }
 
+    /**
+     * Does this operator EXCLUDE rows rather than select them?
+     *
+     * The distinction matters wherever a filter has nothing usable left to compare: a
+     * negation of nothing excludes nothing (so the filter is a no-op), while a positive
+     * match on nothing matches nothing (so the filter must say so).
+     */
+    public function isNegation(): bool
+    {
+        return $this === self::Not || $this === self::NotContains;
+    }
+
     /** The fixed SQL operator this maps to, for the comparison family only. */
     public function toFilterOperator(): FilterOperator
     {

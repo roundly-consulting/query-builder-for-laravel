@@ -109,7 +109,13 @@ abstract class TestCase extends PackageTestCase
             $table->string('summary')->nullable();
             $table->unsignedInteger('views')->default(0);
             $table->boolean('active')->default(false);
-            $table->unsignedBigInteger('author_id')->default(0);
+            // A JSON array column, for `JsonContainsOperatorFilter`. Nullable so the
+            // "not tagged X still matches a row with no tags" case is reachable.
+            $table->json('tags')->nullable();
+            // Nullable on purpose: a nullable foreign key is what
+            // `NullableOperatorFilter` exists for — its `none` sentinel and its
+            // NULL-inclusive negation are both unobservable on a NOT NULL column.
+            $table->unsignedBigInteger('author_id')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Http\Request;
 use RoundlyConsulting\QueryBuilder\AllowedFilter;
+use RoundlyConsulting\QueryBuilder\Enums\FilterValueShape;
 use RoundlyConsulting\QueryBuilder\Enums\RequestedOperator;
 use RoundlyConsulting\QueryBuilder\QueryBuilder;
 use RoundlyConsulting\QueryBuilder\Tests\Support\Models\Post;
@@ -292,4 +293,60 @@ it('makes the CONFIGURED default nameable, and nothing else', function (): void 
 
     expect(matchedTitles(operatorBuilder('/?filter[title]='.urlencode('is:done'))->allowedFilters($filters)))
         ->toBe(['is:done ticket']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| The shape guard
+|--------------------------------------------------------------------------
+*/
+
+it('shape-checks a BOOLEAN value too, which reaches the filter by another door', function (): void {
+    // `QueryBuilderRequest` normalises `true` to a real boolean, which cannot carry an
+    // operator — so it used to skip the shape check entirely and land on the column as a
+    // bound boolean. On Postgres that is `operator does not exist: uuid = boolean`: a
+    // request-triggerable 500 on an authenticated endpoint.
+    $result = operatorBuilder('/?filter[author]=true')
+        ->allowedFilters(AllowedFilter::operators(
+            'author',
+            [RequestedOperator::Not],
+            'author_id',
+            shape: FilterValueShape::Id,
+        ))
+        ->get();
+
+    expect($result->pluck('title')->all())->toBe([]);
+});
+
+it('drops a non-scalar element under a shape instead of stringifying it', function (): void {
+    // Casting a nested array is an "Array to string conversion" warning, which Laravel's
+    // handler promotes to an exception — one malformed query string taking the endpoint
+    // down behind a generic 500.
+    $result = operatorBuilder('/?filter[views][]=30&filter[views][]['.'x]=1')
+        ->allowedFilters(AllowedFilter::operators(
+            'views',
+            [RequestedOperator::Not],
+            shape: FilterValueShape::Id,
+        ))
+        ->get();
+
+    expect($result->pluck('title')->all())->toBe(['Alpha release']);
+});
+
+it('excludes nothing when a NEGATED value is the wrong shape for the column', function (): void {
+    // The mirror of the positive case: no row can hold a value the column cannot store, so
+    // excluding it excludes nobody — while a positive match on it must answer empty.
+    $result = operatorBuilder('/?filter[views]=not:garbage')
+        ->allowedFilters(AllowedFilter::operators(
+            'views',
+            [RequestedOperator::Not],
+            shape: FilterValueShape::Id,
+        ))
+        ->get();
+
+    expect(matchedTitles(
+        operatorBuilder('/?filter[views]=not:garbage')
+            ->allowedFilters(AllowedFilter::operators('views', [RequestedOperator::Not], shape: FilterValueShape::Id)),
+    ))->toBe(['Alpha release', 'Beta release', 'Gamma'])
+        ->and($result->count())->toBe(3);
 });

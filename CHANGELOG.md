@@ -17,6 +17,12 @@ All notable changes to `query-builder-for-laravel` will be documented in this fi
   comparison from a declared set over the `filter[<name>]=<operator>:<value>` wire; a bare
   value still means equality. Adds `NotEqualFilter` and `NotPartialFilter`, whose negations
   AND their values and include NULL rows.
+- `AllowedFilter::nullable()` and `AllowedFilter::relation()`, the two shapes a client-chosen
+  negation cannot be expressed in otherwise: a nullable column with a `none` sentinel (so
+  `not:none` means "is set"), and a to-many relation whose negation is `whereDoesntHave`.
+- `FilterValueShape` (`text`/`uuid`/`id`), accepted by `operators()`, `nullable()` and
+  `relation()`: a value the column cannot hold matches nothing instead of reaching the driver,
+  which on Postgres is a request-triggerable 500 (`invalid input syntax for type uuid`).
 - Sorts: `field`, `custom`, and `defaultSort` (single or multi-column).
 - `HasPageSize` FormRequest trait for validated, capped `per_page` handling.
 - Configurable unknown-parameter behaviour (`reject` → HTTP 400, or `ignore`) via the

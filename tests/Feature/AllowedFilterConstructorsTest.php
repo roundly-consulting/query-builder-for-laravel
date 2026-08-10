@@ -6,7 +6,10 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use RoundlyConsulting\QueryBuilder\AllowedFilter;
 use RoundlyConsulting\QueryBuilder\Enums\FilterOperator;
+use RoundlyConsulting\QueryBuilder\Enums\FilterValueShape;
+use RoundlyConsulting\QueryBuilder\Enums\RequestedOperator;
 use RoundlyConsulting\QueryBuilder\QueryBuilder;
+use RoundlyConsulting\QueryBuilder\Tests\Support\Models\Author;
 use RoundlyConsulting\QueryBuilder\Tests\Support\Models\Post;
 
 function builderFor(string $uri): QueryBuilder
@@ -86,4 +89,44 @@ it('maps a filter name to a custom internal column', function (): void {
         ->get();
 
     expect($result->pluck('title')->all())->toBe(['Beta']);
+});
+
+it('builds a nullable filter with its sentinel and its negation', function (): void {
+    Post::create(['title' => 'Orphan']);
+    Post::where('title', 'Alpha')->update(['author_id' => 7]);
+
+    $unset = builderFor('/?filter[author]=none')
+        ->allowedFilters(AllowedFilter::nullable('author', 'author_id', FilterValueShape::Id))
+        ->get();
+
+    $set = builderFor('/?filter[author]=not:none')
+        ->allowedFilters(AllowedFilter::nullable('author', 'author_id', FilterValueShape::Id))
+        ->get();
+
+    expect($unset->pluck('title')->sort()->values()->all())->toBe(['Beta', 'Orphan'])
+        ->and($set->pluck('title')->all())->toBe(['Alpha']);
+});
+
+it('builds a relation filter whose negation excludes every related row', function (): void {
+    $ada = Author::create(['name' => 'Ada']);
+    Author::create(['name' => 'Cleo']);
+    Post::where('title', 'Alpha')->update(['author_id' => $ada->id]);
+
+    $result = QueryBuilder::for(Author::class, Request::create('/?filter[post]=not:Alpha'))
+        ->allowedFilters(AllowedFilter::relation('post', 'posts', 'posts.title'))
+        ->get();
+
+    expect($result->pluck('name')->all())->toBe(['Cleo']);
+});
+
+it('answers a value of the wrong shape with an empty result rather than a driver error', function (): void {
+    $result = builderFor('/?filter[views]=gt:garbage')
+        ->allowedFilters(AllowedFilter::operators(
+            'views',
+            [RequestedOperator::GreaterThan],
+            shape: FilterValueShape::Id,
+        ))
+        ->get();
+
+    expect($result->pluck('title')->all())->toBe([]);
 });
