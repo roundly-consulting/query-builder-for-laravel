@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use RoundlyConsulting\QueryBuilder\Enums\FilterOperator;
+use RoundlyConsulting\QueryBuilder\Enums\FilterValueShape;
 use RoundlyConsulting\QueryBuilder\Enums\RequestedOperator;
 use RoundlyConsulting\QueryBuilder\Enums\SortDirection;
 use RoundlyConsulting\QueryBuilder\Enums\UnknownParameterMode;
@@ -86,4 +87,16 @@ it('only reads a token before the FIRST colon', function (): void {
 
     expect($parsed->operator)->toBeNull()
         ->and($parsed->value)->toBe('https://example.test');
+});
+
+it('rejects an id too large for the column it guards', function (): void {
+    // A digit string is not the same question as a number a bigint can hold: Postgres
+    // answers the second with `22003 value out of range`, which is the same 500 this shape
+    // exists to prevent.
+    expect(FilterValueShape::Id->matches('42'))->toBeTrue()
+        ->and(FilterValueShape::Id->matches((string) PHP_INT_MAX))->toBeTrue()
+        ->and(FilterValueShape::Id->matches('99999999999999999999999'))->toBeFalse()
+        ->and(FilterValueShape::Id->matches('-1'))->toBeFalse()
+        ->and(FilterValueShape::Id->matches('4.2'))->toBeFalse()
+        ->and(FilterValueShape::Id->matches('garbage'))->toBeFalse();
 });

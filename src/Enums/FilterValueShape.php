@@ -44,7 +44,13 @@ enum FilterValueShape: string
         return match ($this) {
             self::Text => true,
             self::Uuid => Str::isUuid($value),
-            self::Id => ctype_digit($value),
+            // Not `ctype_digit`: Postgres rejects an OUT-OF-RANGE number exactly as it
+            // rejects a malformed uuid (`22003` vs `22P02`), so a guard that only checks
+            // the spelling still lets `99999999999999999999999` through to a 500 on an
+            // authenticated endpoint. `FILTER_VALIDATE_INT` caps at `PHP_INT_MAX`, which is
+            // precisely a bigint's maximum; a narrower column (`integer`, `smallint`) is
+            // bounded by its own validation rule at the endpoint, where its width is known.
+            self::Id => filter_var($value, FILTER_VALIDATE_INT) !== false && ! str_starts_with($value, '-'),
         };
     }
 }

@@ -8,11 +8,15 @@ use RoundlyConsulting\QueryBuilder\Enums\RequestedOperator;
 use RoundlyConsulting\QueryBuilder\Rules\FilterValue;
 use RoundlyConsulting\QueryBuilder\Support\FilterSentinel;
 
-function validateFilter(mixed $value, array|string|object $rules, ?array $operators = null): array
-{
+function validateFilter(
+    mixed $value,
+    array|string|object $rules,
+    ?array $operators = null,
+    bool $partialByDefault = false,
+): array {
     $validator = Validator::make(
         ['filter' => ['level' => $value]],
-        ['filter.level' => ['nullable', new FilterValue($rules, $operators)]],
+        ['filter.level' => ['nullable', new FilterValue($rules, $operators, partialByDefault: $partialByDefault)]],
     );
 
     /** @var list<string> */
@@ -46,9 +50,28 @@ it('validates every element of a multi value', function (): void {
 });
 
 it('validates a value whole when the prefix is not an operator it strips', function (): void {
-    // `is` is an operator, but not one this filter offers — so the value is the text.
-    expect(validateFilter('is:error', Rule::in(['error']), [RequestedOperator::Not]))->not->toBe([])
+    // A token the filter never declared is part of the value, so the rules see it whole.
+    expect(validateFilter('gte:5', Rule::in(['5']), [RequestedOperator::Not]))->not->toBe([])
         ->and(validateFilter('https://example.test', 'url'))->toBe([]);
+});
+
+it('always strips the filter own default, so a client can switch a chip back', function (): void {
+    // `RequestedOperatorFilter` prepends its default unconditionally, so a rule that does
+    // not strip `is:` 422s the one request that returns a chip to plain equality — while
+    // the controller behind it handles that request perfectly.
+    expect(validateFilter('is:error', Rule::in(['error']), [RequestedOperator::Not]))->toBe([]);
+});
+
+it('strips the CONFIGURED default on a partial-by-default field', function (): void {
+    // A search box means `contains` with no prefix, so that is the token that must be
+    // nameable there — and `is:` is deliberately not an operator, exactly as in the filter.
+    expect(validateFilter('contains:err', 'string', [], true))->toBe([]);
+});
+
+it('splits a comma inside an ARRAY element too', function (): void {
+    // `filter[level][]=debug,info` is a legal wire value the request normaliser flattens.
+    expect(validateFilter(['debug,info'], Rule::in(['debug', 'info'])))->toBe([])
+        ->and(validateFilter(['debug,nonsense'], Rule::in(['debug', 'info'])))->not->toBe([]);
 });
 
 it('lets a sentinel through, because the filter answers it rather than the column', function (): void {

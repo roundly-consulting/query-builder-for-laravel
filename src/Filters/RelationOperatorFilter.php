@@ -6,11 +6,11 @@ namespace RoundlyConsulting\QueryBuilder\Filters;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use RoundlyConsulting\QueryBuilder\Concerns\DeclaresEqualityOperators;
 use RoundlyConsulting\QueryBuilder\Contracts\Filter;
 use RoundlyConsulting\QueryBuilder\DataTransferObjects\RequestedFilterValues;
 use RoundlyConsulting\QueryBuilder\Enums\FilterValueShape;
 use RoundlyConsulting\QueryBuilder\Enums\RequestedOperator;
-use RoundlyConsulting\QueryBuilder\Exceptions\UnsupportedOperator;
 
 /**
  * Match on a RELATION rather than a column, with a client-choosable negation.
@@ -31,6 +31,8 @@ use RoundlyConsulting\QueryBuilder\Exceptions\UnsupportedOperator;
  */
 final readonly class RelationOperatorFilter implements Filter
 {
+    use DeclaresEqualityOperators;
+
     /** @var list<RequestedOperator> */
     private array $allowed;
 
@@ -121,28 +123,5 @@ final readonly class RelationOperatorFilter implements Filter
             : $query->where(function (Builder $inner) use ($property, $matches): void {
                 $inner->whereDoesntHave($property)->orWhereHas($property, $matches);
             });
-    }
-
-    /**
-     * The operators an equality filter can answer, and the guard that says so.
-     *
-     * @param  list<RequestedOperator>  $operators
-     * @return list<RequestedOperator>
-     */
-    private function equalityOperators(array $operators, string $filter): array
-    {
-        foreach ($operators as $operator) {
-            if ($operator !== RequestedOperator::Is && $operator !== RequestedOperator::Not) {
-                throw UnsupportedOperator::make(
-                    $operator,
-                    [RequestedOperator::Is, RequestedOperator::Not],
-                    $filter,
-                );
-            }
-        }
-
-        // `is` is always nameable: a client that switched a chip has to be able to switch
-        // back. `array_unique` may reorder; only membership is ever read.
-        return array_values(array_unique([RequestedOperator::Is, ...$operators], SORT_REGULAR));
     }
 }

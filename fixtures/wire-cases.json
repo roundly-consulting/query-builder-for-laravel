@@ -1,0 +1,121 @@
+{
+  "$comment": [
+    "THE FILTER WIRE, AS A TABLE. Byte-identical copies of this file live in",
+    "query-builder-for-laravel/fixtures/wire-cases.json and in cosmos-frontend's filter kit.",
+    "Each implementation drives its own parser from it, which is the only thing that turns",
+    "'the Laravel, Node and browser halves speak one grammar' from a claim in a docblock",
+    "into something a test fails on. If you change a case here, change it in every copy —",
+    "and if you cannot make every copy pass, the wire has forked and that is the bug.",
+    "",
+    "`offered` is the operator allow-list the filter declared; `operator` is the EFFECTIVE",
+    "operator (a request that names none reads as `is`); `values` are what remains after the",
+    "prefix, comma-split, with empties dropped."
+  ],
+  "cases": [
+    {
+      "name": "a bare value is equality, exactly as before the wire existed",
+      "raw": "running",
+      "offered": ["is", "not"],
+      "operator": "is",
+      "values": ["running"]
+    },
+    {
+      "name": "a declared operator is honoured",
+      "raw": "not:running",
+      "offered": ["is", "not"],
+      "operator": "not",
+      "values": ["running"]
+    },
+    {
+      "name": "the operator rides on the whole filter, not on a value",
+      "raw": "not:running,failed",
+      "offered": ["is", "not"],
+      "operator": "not",
+      "values": ["running", "failed"]
+    },
+    {
+      "name": "an operator the filter did not declare is part of the value",
+      "raw": "contains:run",
+      "offered": ["is", "not"],
+      "operator": "is",
+      "values": ["contains:run"]
+    },
+    {
+      "name": "an unknown token is part of the value",
+      "raw": "drop:table",
+      "offered": ["is", "not"],
+      "operator": "is",
+      "values": ["drop:table"]
+    },
+    {
+      "name": "a hostile prefix is inert text, never an operator",
+      "raw": "1=1 or 1:draft",
+      "offered": ["is", "not", "contains", "ncontains", "starts", "gt", "gte", "lt", "lte"],
+      "operator": "is",
+      "values": ["1=1 or 1:draft"]
+    },
+    {
+      "name": "a value that merely contains a colon filters for itself",
+      "raw": "https://example.test",
+      "offered": ["is", "not"],
+      "operator": "is",
+      "values": ["https://example.test"]
+    },
+    {
+      "name": "only the FIRST colon is considered",
+      "raw": "not:http://example.test",
+      "offered": ["is", "not"],
+      "operator": "not",
+      "values": ["http://example.test"]
+    },
+    {
+      "name": "the filter's own default is always nameable, so a client can switch back",
+      "raw": "is:running",
+      "offered": ["is", "not"],
+      "operator": "is",
+      "values": ["running"]
+    },
+    {
+      "name": "empty elements are dropped, so a stray comma is not a filter for nothing",
+      "raw": "a,,b",
+      "offered": ["is", "not"],
+      "operator": "is",
+      "values": ["a", "b"]
+    },
+    {
+      "name": "a lone comma carries no value at all",
+      "raw": ",",
+      "offered": ["is", "not"],
+      "operator": "is",
+      "values": []
+    },
+    {
+      "name": "an operator with nothing after it carries no value at all",
+      "raw": "not:",
+      "offered": ["is", "not"],
+      "operator": "not",
+      "values": []
+    },
+    {
+      "name": "an empty parameter carries no value at all",
+      "raw": "",
+      "offered": ["is", "not"],
+      "operator": "is",
+      "values": []
+    },
+    {
+      "name": "a comparison operator is read where the filter declares one",
+      "raw": "gte:500",
+      "offered": ["is", "not", "gt", "gte", "lt", "lte"],
+      "operator": "gte",
+      "values": ["500"]
+    },
+    {
+      "name": "a partial operator is read where the filter declares one",
+      "raw": "ncontains:/health",
+      "offered": ["is", "not", "contains", "ncontains", "starts"],
+      "operator": "ncontains",
+      "values": ["/health"]
+    }
+  ]
+}

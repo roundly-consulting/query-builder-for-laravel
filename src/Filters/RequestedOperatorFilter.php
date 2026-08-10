@@ -10,6 +10,7 @@ use RoundlyConsulting\QueryBuilder\Contracts\Filter;
 use RoundlyConsulting\QueryBuilder\DataTransferObjects\RequestedFilterValues;
 use RoundlyConsulting\QueryBuilder\Enums\FilterValueShape;
 use RoundlyConsulting\QueryBuilder\Enums\RequestedOperator;
+use RoundlyConsulting\QueryBuilder\Exceptions\UnsupportedOperator;
 
 /**
  * A filter whose operator the client may CHOOSE — from a set the developer declared.
@@ -61,6 +62,24 @@ final readonly class RequestedOperatorFilter implements Filter
         // into the box searches for that text instead of silently exact-matching `done`.
         // `array_unique` may reorder; only membership is ever read.
         $this->allowed = array_values(array_unique([$this->default, ...$allowed], SORT_REGULAR));
+
+        // A LIKE against a typed column is not a query the driver can run: `smallint ilike ?`
+        // and `uuid ilike ?` are both `operator does not exist`. The shape says the column is
+        // typed and a partial operator says the opposite, so the declaration is refused here
+        // rather than 500ing on the first request that uses it.
+        if ($shape === FilterValueShape::Text) {
+            return;
+        }
+
+        foreach ($this->allowed as $operator) {
+            if ($operator->isPartial()) {
+                throw UnsupportedOperator::make(
+                    $operator,
+                    array_values(array_filter($this->allowed, static fn (RequestedOperator $o): bool => ! $o->isPartial())),
+                    "A `{$shape->value}`-shaped filter",
+                );
+            }
+        }
     }
 
     /**

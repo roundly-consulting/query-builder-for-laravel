@@ -81,6 +81,12 @@ enum RequestedOperator: string
         return new RequestedFilterValue($operator, substr($raw, $position + 1));
     }
 
+    /** Is this a LIKE-family operator — one only a text column can answer? */
+    public function isPartial(): bool
+    {
+        return $this === self::Contains || $this === self::NotContains || $this === self::StartsWith;
+    }
+
     /**
      * Does this operator EXCLUDE rows rather than select them?
      *

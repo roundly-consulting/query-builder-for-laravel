@@ -60,13 +60,25 @@ final readonly class FilterValue implements ValidationRule
      * @param  list<string>  $sentinels  reserved values the filter answers itself
      *                                   ({@see FilterSentinel::NONE}), which its column
      *                                   rules would reject
+     * @param  bool  $partialByDefault  mirror the filter's own flag: it decides which
+     *                                  operator a BARE value means, and that one is always
+     *                                  nameable
      */
     public function __construct(
         private array|string|object $rules,
         ?array $operators = null,
         private array $sentinels = [],
+        bool $partialByDefault = false,
     ) {
-        $this->operators = $operators ?? [RequestedOperator::Is, RequestedOperator::Not];
+        // The filter's own default is always nameable — `RequestedOperatorFilter` prepends
+        // it unconditionally, so a rule that does not strip it 422s the one request a
+        // client makes to switch a chip back to plain equality.
+        $default = $partialByDefault ? RequestedOperator::Contains : RequestedOperator::Is;
+
+        $this->operators = array_values(array_unique(
+            [$default, ...($operators ?? [RequestedOperator::Not])],
+            SORT_REGULAR,
+        ));
     }
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
@@ -76,10 +88,17 @@ final readonly class FilterValue implements ValidationRule
         // one `a,b` string here and would fail an `in:` rule as a whole. The same cap the
         // request normaliser applies is applied here, or a 5 000-item value spins up 5 000
         // validators before the cap it is bounded by ever runs.
-        $parsed = RequestedFilterValues::parse(
-            is_string($value) && str_contains($value, ',') ? explode(',', $value) : $value,
-            $this->operators,
-        );
+        // Split EVERY element, not just a bare string: `filter[level][]=debug,info` is a
+        // legal wire value that the request normaliser flattens to two, so validating the
+        // element whole would 422 a request the filter handles.
+        $exploded = [];
+        foreach (is_array($value) ? $value : [$value] as $item) {
+            is_string($item)
+                ? array_push($exploded, ...explode(',', $item))
+                : $exploded[] = $item;
+        }
+
+        $parsed = RequestedFilterValues::parse(count($exploded) === 1 ? $exploded[0] : $exploded, $this->operators);
 
         $limit = max(1, (int) config('query-builder.limits.max_filter_values', 50));
 
