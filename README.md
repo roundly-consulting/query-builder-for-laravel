@@ -20,9 +20,9 @@
 
 Allow-list-driven filtering, sorting and pagination for Laravel API list endpoints. Read the
 request query string (`filter[...]`, `sort=`, `page`, `per_page`) and apply **only** the
-filters and sorts a controller explicitly permits — everything else is rejected. It is a
-native, dependency-policy-clean replacement for third-party query builders: no runtime
-dependencies beyond Laravel, Symfony, and our own enums package.
+filters and sorts a controller explicitly permits — everything else is rejected. It is built
+natively on Laravel: no runtime dependencies beyond Laravel, Symfony, and our own companion
+packages.
 
 ## Requirements
 
