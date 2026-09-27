@@ -92,9 +92,11 @@ it('drops a non-scalar element instead of stringifying it', function (): void {
 
 it('treats an undeclared operator as part of the value', function (): void {
     $query = Post::query();
-    (new NullableOperatorFilter(FilterValueShape::Text, []))->apply($query, 'not:1', 'author_id');
+    // A text-shaped value belongs on a text column: against the bigint `author_id`, Postgres
+    // rejects 'not:1' outright instead of matching nothing.
+    (new NullableOperatorFilter(FilterValueShape::Text, []))->apply($query, 'not:1', 'summary');
 
-    // `not` was not declared, so the whole string is the value — which no author_id holds.
+    // `not` was not declared, so the whole string is the value — which no summary holds.
     expect($query->pluck('title')->all())->toBe([]);
 });
 
