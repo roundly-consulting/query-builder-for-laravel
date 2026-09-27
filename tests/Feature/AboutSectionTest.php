@@ -24,8 +24,16 @@ declare(strict_types=1);
  */
 it('renders the wire contract without leaking anything behind it', function (): void {
     // The host's own connection details, reachable from where the about closure runs. None
-    // of this is query-builder's to print.
-    config()->set('database.connections.testing.password', 'pa55word-should-never-render');
+    // of this is query-builder's to print. A separate connection carries the canary: planting
+    // it on the live `testing` connection breaks the next reconnect on a password-protected
+    // real engine (CI's pgsql/mysql legs), which then fails for the wrong reason.
+    config()->set('database.connections.host', [
+        'driver' => 'pgsql',
+        'host' => 'db.internal',
+        'database' => 'archived_posts',
+        'username' => 'app',
+        'password' => 'pa55word-should-never-render',
+    ]);
     config()->set('app.key', 'base64:c2VjcmV0LWFwcC1rZXktbmV2ZXItcmVuZGVy');
 
     expect('query-builder')->toLeakNoSecrets(
