@@ -60,8 +60,8 @@ it('compiles the operator its own driver calls for', function (): void {
 });
 
 /**
- * Case-insensitivity is the claim `PartialFilter`'s docblock makes ("Postgres uses `ILIKE`
- * for case-insensitivity; the others a collation-insensitive `LIKE`"), and it is the claim
+ * Case-insensitivity is the claim `PartialFilter`'s docblock makes (for ASCII on every
+ * engine; beyond it, see the next test), and it is the claim
  * most likely to be false on an engine nobody ran. It is delivered by three *different*
  * mechanisms — Postgres' `ILIKE` operator, MySQL's case-insensitive default collation, and
  * SQLite's ASCII-only `LIKE` — so "it works" on one engine is no evidence at all for
@@ -77,6 +77,36 @@ it('matches case-insensitively on the configured engine', function (): void {
 
     expect($query->orderBy('id')->pluck('title')->all())
         ->toBe(['Hello World', 'GOODBYE world']);
+});
+
+/**
+ * Beyond ASCII the engines genuinely disagree, and the README says so rather than claiming
+ * a portability no driver-agnostic `LIKE` can deliver: SQLite's built-in `LIKE` folds ASCII
+ * letters only, Postgres' `ILIKE` folds by the database's ctype locale (UTF-8 here, as on
+ * CI), and MySQL folds by the column collation (the default `_ci` one also ignores
+ * accents). Pinned per engine so the documented table cannot drift from the truth.
+ */
+it('folds non-ASCII letters exactly as the configured engine documents', function (): void {
+    Post::create(['title' => 'Ärger im Büro']);
+    Post::create(['title' => 'unrelated']);
+
+    $match = function (string $needle): array {
+        $query = Post::query();
+        (new PartialFilter)->apply($query, $needle, 'title');
+
+        return $query->pluck('title')->all();
+    };
+
+    [$caseFolded, $accentFolded] = match (DriverMatrix::driver()) {
+        'sqlite' => [[], []],
+        'pgsql' => [['Ärger im Büro'], []],
+        default => [['Ärger im Büro'], ['Ärger im Büro']],
+    };
+
+    expect($match('ärger'))->toBe($caseFolded)
+        ->and($match('arger'))->toBe($accentFolded)
+        // Exact letters match on every engine.
+        ->and($match('Ärger'))->toBe(['Ärger im Büro']);
 });
 
 /**

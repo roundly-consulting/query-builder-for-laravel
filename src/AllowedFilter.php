@@ -67,7 +67,7 @@ final class AllowedFilter
     }
 
     /**
-     * Anchored prefix match: `value%` (escaped, case-insensitive).
+     * Anchored prefix match: `value%` (escaped; case folding as {@see PartialFilter}'s).
      */
     public static function beginsWith(string $name, ?string $internalName = null): self
     {
@@ -75,7 +75,7 @@ final class AllowedFilter
     }
 
     /**
-     * Anchored suffix match: `%value` (escaped, case-insensitive).
+     * Anchored suffix match: `%value` (escaped; case folding as {@see PartialFilter}'s).
      */
     public static function endsWith(string $name, ?string $internalName = null): self
     {

@@ -81,7 +81,7 @@ return [
     'limits' => [
         'max_filter_values' => 50,   // most comma/array items per filter value
         'max_value_length'  => 255,  // most characters per individual value
-        'max_sorts'         => 5,    // most sort columns (after de-duplication)
+        'max_sorts'         => 5,    // most allow-listed sort columns applied
     ],
 ];
 ```
@@ -95,10 +95,10 @@ return [
 | `pagination.default_per_page` | int | `20` | Page size used when `per_page` is absent or invalid. |
 | `pagination.max_per_page` | int | `100` | Upper bound — `per_page` above it is a 422; also a hard cap. |
 | `mode.unknown_filter` | string | `reject` | `reject` (HTTP 400) or `ignore` (drop the key) for un-allow-listed filters. |
-| `mode.unknown_sort` | string | `reject` | `reject` (HTTP 400) or `ignore` (drop the key) for un-allow-listed sorts. |
+| `mode.unknown_sort` | string | `reject` | `reject` (HTTP 400) or `ignore` (drop the key) for un-allow-listed sorts. When `ignore` drops every requested sort, `defaultSort()` applies. |
 | `limits.max_filter_values` | int | `50` | Comma/array items kept per filter value; extras are dropped (DoS guard). |
 | `limits.max_value_length` | int | `255` | Characters kept per individual filter value; longer values are truncated. |
-| `limits.max_sorts` | int | `5` | Sort columns applied, after duplicates are removed keeping the first. |
+| `limits.max_sorts` | int | `5` | Sort columns applied, after duplicates are removed keeping the first. Only allow-listed sorts count, so a token dropped in `ignore` mode never takes a valid one's place. |
 
 The package works with zero host configuration — the shipped defaults are the intended wire
 contract.
@@ -117,7 +117,7 @@ $posts = QueryBuilder::for(Post::class)
     ->allowedFilters(
         AllowedFilter::exact('status'),
         AllowedFilter::partial('title'),
-        AllowedFilter::scope('published'),
+        AllowedFilter::scope('published', booleans: true),
         AllowedFilter::callback('min_views', fn ($query, $value) => $query->where('views', '>=', $value)),
         AllowedFilter::trashed(),
     )
@@ -131,26 +131,57 @@ $posts = QueryBuilder::for(Post::class)
 pre-scope with `Post::query()->where(...)`). A second, optional argument overrides the request
 it reads from (defaults to the current `request()`).
 
+**Declare `allowedFilters()`, `allowedSorts()` and `defaultSort()` before any builder call.**
+The request is applied the first time a call is forwarded to the builder (`where()`, `with()`,
+`get()`, …), because the forwarded call may be the one that runs the query. A declaration after
+that point throws `AllowListAlreadyApplied` (a `LogicException`) instead of being silently
+ignored:
+
+```php
+QueryBuilder::for(Post::class)
+    ->allowedFilters('status')      // declare first…
+    ->where('views', '>', 0)        // …then any builder call
+    ->get();
+
+QueryBuilder::for(Post::class)
+    ->where('views', '>', 0)
+    ->allowedFilters('status');     // throws AllowListAlreadyApplied
+```
+
+Constraints you want in place before the request is applied belong on the builder you pass in:
+`QueryBuilder::for(Post::query()->where('views', '>', 0))`.
+
 ### Filters
 
 | Constructor | Request | Effect |
 |---|---|---|
 | `AllowedFilter::exact('status')` | `filter[status]=published` | `where('status', 'published')`; a comma list becomes `whereIn`. |
-| `AllowedFilter::partial('title')` | `filter[title]=hello` | Case-insensitive `LIKE` contains (`%hello%`), portable across sqlite/mysql/pgsql, with `%`/`_` escaped via an explicit `ESCAPE '\'` clause. |
-| `AllowedFilter::beginsWith('code')` | `filter[code]=SKU` | Anchored prefix `LIKE` (`SKU%`), escaped and case-insensitive. |
-| `AllowedFilter::endsWith('code')` | `filter[code]=-01` | Anchored suffix `LIKE` (`%-01`), escaped and case-insensitive. |
+| `AllowedFilter::boolean('active')` | `filter[active]=true` | Exact match on a **boolean** column: `true`/`false`/`1`/`0` (any case) compared as real booleans; any other value matches nothing. |
+| `AllowedFilter::partial('title')` | `filter[title]=hello` | `LIKE` contains (`%hello%`) — `ILIKE` on Postgres — with `%`/`_` escaped via an explicit `ESCAPE '\'` clause on sqlite/mysql/pgsql. Case-insensitive as far as the engine folds case (see below). |
+| `AllowedFilter::beginsWith('code')` | `filter[code]=SKU` | Anchored prefix `LIKE` (`SKU%`), escaped, same case folding as `partial`. |
+| `AllowedFilter::endsWith('code')` | `filter[code]=-01` | Anchored suffix `LIKE` (`%-01`), escaped, same case folding as `partial`. |
 | `AllowedFilter::operator('min_views', FilterOperator::GreaterThanOrEqual, 'views')` | `filter[min_views]=10` | Fixed comparison `where('views', '>=', 10)`; a comma list becomes a grouped `OR`. |
 | `AllowedFilter::operators('status', [RequestedOperator::Not])` | `filter[status]=not:draft` | The **client** picks the comparison, from the set declared here. A bare value still means equality. |
 | `AllowedFilter::nullable('project', 'project_id', FilterValueShape::Uuid)` | `filter[project]=none` | Exact match on a **nullable** column, with `none` for "unset" and `not:none` for "is set". A negation also matches the unset rows. |
 | `AllowedFilter::relation('label', 'labels', 'labels.id')` | `filter[label]=not:<id>` | Matches through a **relation** — `whereHas`, and `whereDoesntHave` for a negation. |
-| `AllowedFilter::scope('published')` | `filter[published]=1` | Calls the model scope `scopePublished(...)`; the value is passed as **one** argument. |
+| `AllowedFilter::scope('published', booleans: true)` | `filter[published]=false` | Calls the model scope `scopePublished(...)`; the value is passed as **one** argument (`booleans: true` makes `true`/`false`/`1`/`0` real booleans). |
 | `AllowedFilter::scope('between', spread: true)` | `filter[between]=10,100` | Calls the scope with the array **spread** across its arguments (opt-in — see below). |
-| `AllowedFilter::callback('min_views', $cb)` | `filter[min_views]=10` | Invokes `$cb($query, $value, $name)`. |
+| `AllowedFilter::callback('min_views', $cb)` | `filter[min_views]=10` | Invokes `$cb($query, $value, $name)`; takes `booleans: true` like `scope()`. |
 | `AllowedFilter::trashed()` | `filter[trashed]=with` | `with` includes trashed, `only` returns only trashed (honouring a custom soft-delete column), otherwise non-trashed (needs `SoftDeletes`). |
-| `AllowedFilter::custom('x', $filter)` | `filter[x]=…` | Runs your own `Filter` implementation. |
+| `AllowedFilter::custom('x', $filter)` | `filter[x]=…` | Runs your own `Filter` implementation; takes `booleans: true` like `scope()`. |
 
 Every constructor takes an optional internal name to map a public request key to a different
 column or scope: `AllowedFilter::exact('state', 'status')`.
+
+**Case folding is the engine's.** `partial()`, `beginsWith()`, `endsWith()` and the `contains` /
+`ncontains` / `starts` operators ignore letter case the way the database does, and the three
+engines differ outside plain ASCII:
+
+| Engine | Operator | Case folding |
+|---|---|---|
+| PostgreSQL | `ILIKE` | Follows the database's ctype locale: Unicode under a UTF-8 locale (`ärger` finds `Ärger`), ASCII only under `C`. Accents still count. |
+| MySQL / MariaDB | `LIKE` | Follows the column's collation: the default `_ci` collations fold Unicode case **and** accents (`arger` finds `Ärger`); a `_bin` / `_cs` collation is case-sensitive. |
+| SQLite | `LIKE` | ASCII letters only: `hello` finds `HELLO`, but `ärger` does **not** find `Ärger`. |
 
 `operator()` picks the comparison **server-side** from the `FilterOperator` enum (`=`, `!=`,
 `>`, `>=`, `<`, `<=`) — the wire stays `filter[<name>]=<value>`; the operator is never read
@@ -209,13 +240,33 @@ with an error rather than "no match", so `filter[project]=garbage` on a uuid col
 request-triggerable 500. With a shape declared, a value the column cannot hold is answered with an
 empty result (and a *negation* of one excludes nothing, since no row could have matched it). It is
 accepted by `operators()`, `nullable()` and `relation()`; the default `Text` guards nothing, so no
-existing filter changes.
+existing filter changes. The shapes are `Text`, `Uuid`, `Id` (a non-negative integer that fits a
+bigint) and `Boolean` (`true`/`false`/`1`/`0` in any case, handed to the query as real booleans):
 
-Values are normalised once before a filter runs: a comma list becomes an array, `true`/`false`
-become booleans, and one level of `filter[x][]=` array nesting is flattened. To keep a request
-from turning into an expensive query, filter values are also bounded by the `limits.*` config —
-excess comma/array items and over-long values are dropped/truncated, and duplicate sort columns
-are removed.
+```php
+->allowedFilters(
+    AllowedFilter::operators('active', [RequestedOperator::Not], shape: FilterValueShape::Boolean), // not:true
+)
+```
+
+Values are normalised once before a filter runs: a comma list becomes an array and one level of
+`filter[x][]=` array nesting is flattened. **`true` and `false` stay text** — a title search for
+"false" is a search — unless the filter says its value is a boolean: `AllowedFilter::boolean()`,
+a `FilterValueShape::Boolean`, or `booleans: true` on `scope()` / `callback()` / `custom()`, which
+turns each `true`/`false`/`1`/`0` (any case) into a real boolean and leaves every other value as it
+was. Without it a scope receives the string, and PHP reads `'false'` as truthy:
+
+```php
+// Post::scopePublished(Builder $query, bool $published)
+->allowedFilters(
+    AllowedFilter::boolean('active'),                        // filter[active]=false
+    AllowedFilter::scope('published', booleans: true),       // filter[published]=false → false
+)
+```
+
+To keep a request from turning into an expensive query, filter values are also bounded by the
+`limits.*` config — excess comma/array items and over-long values are dropped/truncated, and
+duplicate sort columns are removed.
 
 **Scope spreading is opt-in.** By default a scope filter passes the (normalised) value as a
 **single** argument — `filter[published]=a,b` calls `scopePublished($query, ['a', 'b'])`. This
@@ -239,9 +290,11 @@ arguments map to a comma/array value:
 ```
 
 - `sort=title` sorts ascending; a leading `-` (`sort=-title`) sorts descending.
-- `sort=-created_at,name` applies multiple sorts left to right.
+- `sort=-created_at,name` applies multiple sorts left to right, at most `limits.max_sorts` of
+  them.
 - `defaultSort()` supports the same `-` prefix and comma multi-sort, and runs only when the
-  request omits `sort`.
+  request names no sort — or, in `ignore` mode, none the allow-list knows. A default-sort column
+  outside the allow-list is sorted by that column directly.
 
 A bare string is sugar: a string filter becomes `exact`, a string sort becomes `field`.
 
@@ -287,11 +340,11 @@ or read it from the request (`$request->pageName()`) when you build a paginator 
 |---|---|---|
 | Filter | `filter[<name>]=<value>` | One param per filter; `<name>` is the allow-list key. |
 | Multi-value filter | `filter[<name>]=a,b,c` | Comma-split → array; `exact` → `whereIn`. |
-| Boolean filter value | `filter[<name>]=true` / `false` | Cast to a PHP bool before the filter runs. |
+| Boolean filter value | `filter[<name>]=true` / `false` | A real bool (also `1`/`0`, any case) only for a filter that opts in — `boolean()`, `FilterValueShape::Boolean`, `booleans: true`. Every other filter receives the text. |
 | Sort asc / desc | `sort=field` / `sort=-field` | Leading `-` = descending. |
-| Multi-sort | `sort=-created_at,name` | Comma list, applied left → right; duplicate columns collapse to the first, capped by `limits.max_sorts`. |
+| Multi-sort | `sort=-created_at,name` | Comma list, applied left → right; duplicate columns collapse to the first, capped by `limits.max_sorts` (allow-listed sorts only). |
 | Pagination | `page=<n>` & `per_page=<n>` | Laravel paginator names; `per_page` validated by `HasPageSize`. |
-| Unknown filter/sort key | any key not allow-listed | HTTP 400 (or dropped in `ignore` mode). |
+| Unknown filter/sort key | any key not allow-listed | HTTP 400 (or dropped in `ignore` mode; with every sort dropped, the default sort applies). |
 | Invalid `per_page` | `> max`, `< 1`, non-integer | HTTP 422. |
 
 ### Unknown parameters
@@ -301,7 +354,13 @@ both `Symfony` HTTP exceptions with a **400** status and a translatable message
 (`query-builder::errors.*`). The reflected key names are capped (first few, each truncated,
 with an "…and N more" suffix) so attacker-controlled keys can't flood the response or logs.
 Set `mode.unknown_filter` or `mode.unknown_sort` to `ignore` to silently drop the offending
-key and apply only the allow-listed ones instead.
+key and apply only the allow-listed ones instead. A sort string that is dropped entirely reads
+as if it were absent, so `defaultSort()` still orders the page.
+
+Every exception the package throws implements `RoundlyConsulting\QueryBuilder\Exceptions\QueryBuilderException`.
+Besides the two 400s, two are developer mistakes (`LogicException`s, never request-triggered):
+`UnsupportedOperator` for a filter declared with an operator it cannot perform, and
+`AllowListAlreadyApplied` for an allow-list declared after the request was applied.
 
 ### Custom filters and sorts
 

@@ -51,6 +51,7 @@ return [
     |
     |   'reject'  => throw an HTTP 400 (default)
     |   'ignore'  => silently drop the key and apply only the allow-listed ones
+    |                (a sort string dropped entirely falls back to defaultSort())
     |
     */
 
@@ -69,7 +70,8 @@ return [
     |
     |   max_filter_values => most comma/array items honoured per filter value
     |   max_value_length  => most characters kept per individual filter value
-    |   max_sorts         => most sort columns applied (after de-duplication)
+    |   max_sorts         => most sort columns applied (after de-duplication;
+    |                        only allow-listed sorts count)
     |
     */
 

@@ -23,12 +23,16 @@ final readonly class PartialFilter implements Filter
     ) {}
 
     /**
-     * Case-insensitive partial match, portable across sqlite/mysql/pgsql. User
+     * Partial match, escaped the same way on sqlite/mysql/pgsql. User
      * wildcards are escaped and matched with an explicit `ESCAPE '\'` clause so
      * `%`/`_` stay literal on every driver — SQLite has no default escape
      * character, so a plain `LIKE` would leave the escaped wildcards live.
-     * Postgres uses `ILIKE` for case-insensitivity; the others a
-     * collation-insensitive `LIKE`. The column identifier is developer-supplied
+     *
+     * Case folding is the engine's and differs beyond ASCII: Postgres' `ILIKE`
+     * follows the database's ctype locale (Unicode under a UTF-8 locale), MySQL's
+     * `LIKE` follows the column collation (the default `_ci` ones fold case and
+     * accents, `_bin`/`_cs` do not), and SQLite's `LIKE` folds ASCII letters only
+     * — `ärger` does not find `Ärger` there. The column identifier is developer-supplied
      * (grammar-wrapped `internalName`), the needle and escape char are bound —
      * no request input ever reaches an identifier position. Both wildcard flags
      * default true (a `%value%` "contains"); anchoring one side yields
