@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use RoundlyConsulting\QueryBuilder\AllowedFilter;
 use RoundlyConsulting\QueryBuilder\Enums\FilterValueShape;
 use RoundlyConsulting\QueryBuilder\Enums\RequestedOperator;
+use RoundlyConsulting\QueryBuilder\Filters\RequestedOperatorFilter;
 use RoundlyConsulting\QueryBuilder\QueryBuilder;
 use RoundlyConsulting\QueryBuilder\Tests\Support\Models\Post;
 
@@ -67,20 +68,37 @@ it('accepts an explicit is: prefix as the same thing', function (): void {
     expect($result)->toBe(['Beta release']);
 });
 
-it('leaves a normalized BOOLEAN value untouched', function (): void {
-    // `QueryBuilderRequest` turns `true`/`false` into real booleans. Casting one to a string
-    // to look for a `:` destroys it — `false` becomes `''`, which Postgres rejects outright
-    // on a boolean column (`invalid input syntax for type boolean`) and mysql/sqlite
-    // silently coerce to 0. Only a string can carry an operator prefix, so a non-string
-    // value must reach the query exactly as received.
+it('compares a boolean-shaped value as a real boolean', function (): void {
+    // The request hands every filter TEXT; a filter that declares its column boolean gets
+    // the words as real booleans — `'false'` is not false to any engine.
     Post::query()->where('title', 'Alpha release')->update(['active' => true]);
 
-    $filters = AllowedFilter::operators('active', [RequestedOperator::Not]);
+    $filters = AllowedFilter::operators('active', [RequestedOperator::Not], shape: FilterValueShape::Boolean);
 
     expect(matchedTitles(operatorBuilder('/?filter[active]=true')->allowedFilters($filters)))
         ->toBe(['Alpha release']);
     expect(matchedTitles(operatorBuilder('/?filter[active]=false')->allowedFilters($filters)))
         ->toBe(['Beta release', 'Gamma']);
+});
+
+it('leaves a real BOOLEAN handed to it directly untouched', function (): void {
+    // Only a string can carry an operator prefix. Casting a real boolean to a string to
+    // look for a `:` destroys it — `false` becomes `''`, which Postgres rejects outright on
+    // a boolean column — so a filter called directly with one forwards it as received.
+    Post::query()->where('title', 'Alpha release')->update(['active' => true]);
+
+    $titles = function (bool $value, FilterValueShape $shape): array {
+        $query = Post::query();
+        (new RequestedOperatorFilter([RequestedOperator::Not], shape: $shape))->apply($query, $value, 'active');
+
+        return $query->pluck('title')->sort()->values()->all();
+    };
+
+    expect($titles(true, FilterValueShape::Text))->toBe(['Alpha release'])
+        ->and($titles(false, FilterValueShape::Text))->toBe(['Beta release', 'Gamma'])
+        ->and($titles(false, FilterValueShape::Boolean))->toBe(['Beta release', 'Gamma'])
+        // Spelled out, never cast: `(string) true` is `'1'`, which an id shape would accept.
+        ->and($titles(true, FilterValueShape::Id))->toBe([]);
 });
 
 /*
@@ -301,11 +319,11 @@ it('makes the CONFIGURED default nameable, and nothing else', function (): void 
 |--------------------------------------------------------------------------
 */
 
-it('shape-checks a BOOLEAN value too, which reaches the filter by another door', function (): void {
-    // `QueryBuilderRequest` normalises `true` to a real boolean, which cannot carry an
-    // operator — so it used to skip the shape check entirely and land on the column as a
-    // bound boolean. On Postgres that is `operator does not exist: uuid = boolean`: a
-    // request-triggerable 500 on an authenticated endpoint.
+it('shape-checks the word true on a typed column', function (): void {
+    // `true` once reached this filter as a real boolean, which cannot carry an operator —
+    // so it skipped the shape check entirely and landed on the column as a bound boolean.
+    // On Postgres that is `operator does not exist: uuid = boolean`: a request-triggerable
+    // 500 on an authenticated endpoint. It is text now, and text is shape-checked.
     $result = operatorBuilder('/?filter[author]=true')
         ->allowedFilters(AllowedFilter::operators(
             'author',

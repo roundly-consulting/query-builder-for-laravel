@@ -30,16 +30,28 @@ it('treats an empty partial value as a match-all no-op', function (): void {
     expect($result->pluck('title')->all())->toBe(['Alpha', 'Beta']);
 });
 
-// B2 — exact boolean value casts to a real bool; comma list becomes whereIn.
-it('casts an exact boolean value rather than matching the string', function (): void {
+// B2 — a boolean filter casts to a real bool; every other filter keeps the text;
+// a comma list becomes whereIn.
+it('casts a boolean filter value rather than matching the string', function (): void {
     Post::create(['title' => 'On', 'active' => true]);
     Post::create(['title' => 'Off', 'active' => false]);
 
-    $result = wire('/?filter[active]=true')
-        ->allowedFilters(AllowedFilter::exact('active'))
+    $result = wire('/?filter[active]=false')
+        ->allowedFilters(AllowedFilter::boolean('active'))
         ->get();
 
-    expect($result->pluck('title')->all())->toBe(['On']);
+    expect($result->pluck('title')->all())->toBe(['Off']);
+});
+
+it('keeps an exact text value of false as text', function (): void {
+    Post::create(['title' => 'Literal', 'status' => 'false']);
+    Post::create(['title' => 'Other', 'status' => 'draft']);
+
+    $result = wire('/?filter[status]=false')
+        ->allowedFilters(AllowedFilter::exact('status'))
+        ->get();
+
+    expect($result->pluck('title')->all())->toBe(['Literal']);
 });
 
 it('turns a comma exact list into a whereIn', function (): void {
@@ -80,15 +92,19 @@ it('passes a comma scope value as one argument by default', function (): void {
     expect($result->pluck('title')->all())->toBe(['A', 'C']);
 });
 
-it('passes a scalar bool scope value as a single argument', function (): void {
+it('passes a scalar bool scope value as a single argument when opted in', function (): void {
     Post::create(['title' => 'Live', 'status' => 'published']);
     Post::create(['title' => 'Hidden', 'status' => 'draft']);
 
-    $result = wire('/?filter[published]=true')
-        ->allowedFilters(AllowedFilter::scope('published'))
+    $live = wire('/?filter[published]=true')
+        ->allowedFilters(AllowedFilter::scope('published', booleans: true))
+        ->get();
+    $hidden = wire('/?filter[published]=false')
+        ->allowedFilters(AllowedFilter::scope('published', booleans: true))
         ->get();
 
-    expect($result->pluck('title')->all())->toBe(['Live']);
+    expect($live->pluck('title')->all())->toBe(['Live'])
+        ->and($hidden->pluck('title')->all())->toBe(['Hidden']);
 });
 
 // B4 — multi-sort applies left→right.

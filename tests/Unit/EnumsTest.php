@@ -100,3 +100,22 @@ it('rejects an id too large for the column it guards', function (): void {
         ->and(FilterValueShape::Id->matches('4.2'))->toBeFalse()
         ->and(FilterValueShape::Id->matches('garbage'))->toBeFalse();
 });
+
+it('accepts only the boolean spellings for a boolean column', function (): void {
+    expect(FilterValueShape::Boolean->matches('true'))->toBeTrue()
+        ->and(FilterValueShape::Boolean->matches('FALSE'))->toBeTrue()
+        ->and(FilterValueShape::Boolean->matches('1'))->toBeTrue()
+        ->and(FilterValueShape::Boolean->matches('0'))->toBeTrue()
+        ->and(FilterValueShape::Boolean->matches('yes'))->toBeFalse()
+        ->and(FilterValueShape::Boolean->matches('2'))->toBeFalse()
+        ->and(FilterValueShape::Boolean->matches(''))->toBeFalse();
+});
+
+it('casts a boolean-shaped value to a real boolean and leaves every other shape alone', function (): void {
+    expect(FilterValueShape::Boolean->cast('True'))->toBeTrue()
+        ->and(FilterValueShape::Boolean->cast('1'))->toBeTrue()
+        ->and(FilterValueShape::Boolean->cast('false'))->toBeFalse()
+        ->and(FilterValueShape::Boolean->cast('0'))->toBeFalse()
+        ->and(FilterValueShape::Text->cast('false'))->toBe('false')
+        ->and(FilterValueShape::Id->cast('1'))->toBe('1');
+});

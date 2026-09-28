@@ -25,15 +25,40 @@ use RoundlyConsulting\QueryBuilder\Support\FilterSentinel;
 
 final class AllowedFilter
 {
+    /**
+     * @param  bool  $booleans  hand the filter `true`/`false`/`1`/`0` as real booleans —
+     *                          only for the host-code filters that opted in
+     */
     private function __construct(
         public readonly string $name,
         public readonly string $internalName,
         private readonly Filter $filter,
+        private readonly bool $booleans = false,
     ) {}
 
     public static function exact(string $name, ?string $internalName = null): self
     {
         return new self($name, $internalName ?? $name, new ExactFilter);
+    }
+
+    /**
+     * Exact match on a BOOLEAN column: `true` / `false` / `1` / `0` in any letter case,
+     * compared as a real boolean; a comma list matches either. Any other value matches no
+     * row rather than reaching the driver — Postgres answers `boolean = 'maybe'` with an
+     * error, not an empty result.
+     *
+     * Every other filter receives `true` / `false` as the TEXT that was sent (a title
+     * search for "false" is a search), so a flag column says so here. Shorthand for
+     * {@see self::operators()} with no operators and {@see FilterValueShape::Boolean} —
+     * use that directly to also offer `not:`.
+     */
+    public static function boolean(string $name, ?string $internalName = null): self
+    {
+        return new self(
+            $name,
+            $internalName ?? $name,
+            new RequestedOperatorFilter([], shape: FilterValueShape::Boolean),
+        );
     }
 
     public static function partial(string $name, ?string $internalName = null): self
@@ -178,18 +203,32 @@ final class AllowedFilter
      * arguments should come from a comma/array value — the request then controls
      * the argument count, so never enable it for a scope with optional
      * column/operator parameters.
+     *
+     * Pass `booleans: true` for a scope that takes a flag (`scopePublished(bool $published)`):
+     * `true`/`false`/`1`/`0` then arrive as real booleans. Without it the scope receives
+     * the text — and PHP reads the string `'false'` as truthy.
      */
-    public static function scope(string $name, ?string $internalName = null, bool $spread = false): self
-    {
-        return new self($name, $internalName ?? $name, new ScopeFilter($spread));
+    public static function scope(
+        string $name,
+        ?string $internalName = null,
+        bool $spread = false,
+        bool $booleans = false,
+    ): self {
+        return new self($name, $internalName ?? $name, new ScopeFilter($spread), $booleans);
     }
 
     /**
      * @param  Closure(Builder<Model>, mixed, string): void  $callback
+     * @param  bool  $booleans  hand the callback `true`/`false`/`1`/`0` as real booleans
+     *                          (other values stay text); off by default
      */
-    public static function callback(string $name, Closure $callback, ?string $internalName = null): self
-    {
-        return new self($name, $internalName ?? $name, new CallbackFilter($callback));
+    public static function callback(
+        string $name,
+        Closure $callback,
+        ?string $internalName = null,
+        bool $booleans = false,
+    ): self {
+        return new self($name, $internalName ?? $name, new CallbackFilter($callback), $booleans);
     }
 
     public static function trashed(string $name = 'trashed', ?string $internalName = null): self
@@ -197,9 +236,13 @@ final class AllowedFilter
         return new self($name, $internalName ?? $name, new TrashedFilter);
     }
 
-    public static function custom(string $name, Filter $filter, ?string $internalName = null): self
+    /**
+     * @param  bool  $booleans  hand the filter `true`/`false`/`1`/`0` as real booleans
+     *                          (other values stay text); off by default
+     */
+    public static function custom(string $name, Filter $filter, ?string $internalName = null, bool $booleans = false): self
     {
-        return new self($name, $internalName ?? $name, $filter);
+        return new self($name, $internalName ?? $name, $filter, $booleans);
     }
 
     /**
@@ -207,6 +250,24 @@ final class AllowedFilter
      */
     public function apply(Builder $query, mixed $value): void
     {
-        $this->filter->apply($query, $value, $this->internalName);
+        $this->filter->apply(
+            $query,
+            $this->booleans ? $this->withBooleans($value) : $value,
+            $this->internalName,
+        );
+    }
+
+    /**
+     * Each boolean spelling as a real boolean; every other value exactly as it was.
+     */
+    private function withBooleans(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            return array_map($this->withBooleans(...), $value);
+        }
+
+        return is_string($value) && FilterValueShape::Boolean->matches($value)
+            ? FilterValueShape::Boolean->cast($value)
+            : $value;
     }
 }

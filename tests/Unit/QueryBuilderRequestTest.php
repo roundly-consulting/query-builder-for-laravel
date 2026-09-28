@@ -21,10 +21,11 @@ it('keeps a single filter value scalar', function (): void {
     expect(qbRequest('/?filter[status]=draft')->filters())->toBe(['status' => 'draft']);
 });
 
-it('casts true and false strings to booleans', function (): void {
-    $request = qbRequest('/?filter[active]=true&filter[archived]=FALSE');
+it('keeps true and false as the text that was sent', function (): void {
+    // Whether they are booleans depends on the column, which only the filter knows.
+    $request = qbRequest('/?filter[active]=true&filter[archived]=FALSE&filter[flags]=true,false');
 
-    expect($request->filters())->toBe(['active' => true, 'archived' => false]);
+    expect($request->filters())->toBe(['active' => 'true', 'archived' => 'FALSE', 'flags' => ['true', 'false']]);
 });
 
 it('passes an empty filter value through unchanged', function (): void {

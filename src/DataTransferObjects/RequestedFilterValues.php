@@ -95,13 +95,18 @@ final readonly class RequestedFilterValues
     }
 
     /**
-     * The subset of `$values` the column can actually hold. See {@see FilterValueShape}.
+     * The subset of `$values` the column can actually hold, each as the column holds it —
+     * a real boolean for {@see FilterValueShape::Boolean}, the string otherwise. See
+     * {@see FilterValueShape}.
      *
      * @param  list<string>  $values
-     * @return list<string>
+     * @return list<bool|string>
      */
     public static function matching(array $values, FilterValueShape $shape): array
     {
-        return array_values(array_filter($values, $shape->matches(...)));
+        return array_values(array_map(
+            $shape->cast(...),
+            array_filter($values, $shape->matches(...)),
+        ));
     }
 }

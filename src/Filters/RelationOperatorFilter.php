@@ -102,7 +102,7 @@ final readonly class RelationOperatorFilter implements Filter
      * negates the whole filter: "has a department, and not that one".
      *
      * @param  Builder<Model>  $query
-     * @param  list<string>  $usable
+     * @param  list<bool|string>  $usable
      */
     private function applyWithSentinel(Builder $query, string $property, array $usable, bool $negated): void
     {

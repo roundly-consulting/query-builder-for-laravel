@@ -94,14 +94,14 @@ final readonly class RequestedOperatorFilter implements Filter
         $values = is_array($value) ? $value : [$value];
         $first = $values[0] ?? null;
 
-        // Only a STRING can carry an operator prefix. `QueryBuilderRequest` normalizes
-        // `true`/`false` to real booleans, and casting one to a string to look for a `:`
-        // destroys it — `false` becomes `''`, which Postgres rejects outright on a
-        // boolean column (`invalid input syntax for type boolean`) and mysql/sqlite
-        // quietly coerce to `0`. So a non-string value carries no operator and is
-        // forwarded as received — but it is still SHAPE-CHECKED, because a boolean on a
-        // uuid or bigint column is the same 500 the shape exists to prevent, reached
-        // through a door the string path does not use.
+        // Only a STRING can carry an operator prefix. The request only ever produces
+        // strings, but a filter is also called directly (a custom filter delegating, a
+        // test) with a real boolean or number — and casting one to a string to look for a
+        // `:` destroys it: `false` becomes `''`, which Postgres rejects outright on a
+        // boolean column (`invalid input syntax for type boolean`). So a non-string value
+        // carries no operator and is forwarded as received — but it is still
+        // SHAPE-CHECKED, because a boolean on a uuid or bigint column is the same 500 the
+        // shape exists to prevent, reached through a door the string path does not use.
         if (! is_string($first)) {
             $this->compare($query, $this->default, $this->usable($value), $property);
 
@@ -156,7 +156,13 @@ final readonly class RequestedOperatorFilter implements Filter
 
         $strings = array_values(array_filter(
             array_map(
-                static fn (mixed $item): string => is_scalar($item) ? (string) $item : '',
+                // A real boolean is spelled out, never cast: `(string) false` is `''`,
+                // which would drop it, and `(string) true` is `'1'`, which is an id.
+                static fn (mixed $item): string => match (true) {
+                    is_bool($item) => $item ? 'true' : 'false',
+                    is_scalar($item) => (string) $item,
+                    default => '',
+                },
                 is_array($value) ? $value : [$value],
             ),
             static fn (string $item): bool => $item !== '',

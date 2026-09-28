@@ -39,10 +39,23 @@ enum FilterValueShape: string
     /** An integer id (a bigint column, typically a foreign or cross-service key). */
     case Id = 'id';
 
+    /**
+     * A boolean column. `true` / `false` / `1` / `0`, in any letter case — and the value
+     * reaches the query as a real PHP boolean ({@see self::cast()}), because the text
+     * `'false'` is not false to any engine: Postgres rejects anything but a boolean
+     * spelling, and MySQL/SQLite compare `'true'` with the stored `1` and miss.
+     */
+    case Boolean = 'boolean';
+
+    private const array TRUE_SPELLINGS = ['true', '1'];
+
+    private const array FALSE_SPELLINGS = ['false', '0'];
+
     public function matches(string $value): bool
     {
         return match ($this) {
             self::Text => true,
+            self::Boolean => in_array(strtolower($value), [...self::TRUE_SPELLINGS, ...self::FALSE_SPELLINGS], true),
             self::Uuid => Str::isUuid($value),
             // Not `ctype_digit`: Postgres rejects an OUT-OF-RANGE number exactly as it
             // rejects a malformed uuid (`22003` vs `22P02`), so a guard that only checks
@@ -52,5 +65,16 @@ enum FilterValueShape: string
             // bounded by its own validation rule at the endpoint, where its width is known.
             self::Id => filter_var($value, FILTER_VALIDATE_INT) !== false && ! str_starts_with($value, '-'),
         };
+    }
+
+    /**
+     * A value that {@see self::matches()} this shape, as the column holds it: a real boolean
+     * for {@see self::Boolean}, the string unchanged for every other shape.
+     */
+    public function cast(string $value): bool|string
+    {
+        return $this === self::Boolean
+            ? in_array(strtolower($value), self::TRUE_SPELLINGS, true)
+            : $value;
     }
 }

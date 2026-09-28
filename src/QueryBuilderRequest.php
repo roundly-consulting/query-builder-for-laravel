@@ -34,9 +34,10 @@ final class QueryBuilderRequest
     }
 
     /**
-     * The normalised filter values keyed by request name.
+     * The normalised filter values keyed by request name — a string, or a list of strings
+     * for a comma/array value.
      *
-     * @return array<string, mixed>
+     * @return array<string, string|list<string>>
      */
     public function filters(): array
     {
@@ -104,10 +105,18 @@ final class QueryBuilderRequest
     }
 
     /**
-     * Normalise a single filter value: comma → list, `true`/`false` → bool,
-     * empty string passthrough. One level of array nesting is flattened.
+     * Normalise a single filter value: comma → list, empty string passthrough. One level
+     * of array nesting is flattened.
+     *
+     * `true` / `false` stay TEXT here. Whether they are booleans depends on the column,
+     * which only the filter knows — a title search for "false" is text, a flag column is
+     * not — so the filters that hold booleans opt in ({@see AllowedFilter::boolean()},
+     * `FilterValueShape::Boolean`, `booleans: true`) and every other filter sees the words
+     * as sent.
+     *
+     * @return string|list<string>
      */
-    private function normalizeValue(mixed $value): mixed
+    private function normalizeValue(mixed $value): string|array
     {
         if (is_array($value)) {
             $flattened = [];
@@ -138,8 +147,8 @@ final class QueryBuilderRequest
      * Bound the request-driven work: cap the number of values and the length of
      * each so a cheap query string can't blow up into an expensive query.
      *
-     * @param  list<bool|string>  $values
-     * @return list<bool|string>
+     * @param  list<string>  $values
+     * @return list<string>
      */
     private function capValues(array $values): array
     {
@@ -148,9 +157,9 @@ final class QueryBuilderRequest
         return array_map($this->capScalar(...), $capped);
     }
 
-    private function capScalar(bool|string $value): bool|string
+    private function capScalar(string $value): string
     {
-        return is_string($value) ? mb_substr($value, 0, $this->maxValueLength()) : $value;
+        return mb_substr($value, 0, $this->maxValueLength());
     }
 
     private function maxFilterValues(): int
@@ -169,25 +178,11 @@ final class QueryBuilderRequest
     }
 
     /**
-     * @return bool|string|list<string>
+     * @return string|list<string>
      */
-    private function normalizeScalar(string $value): bool|string|array
+    private function normalizeScalar(string $value): string|array
     {
-        $lower = strtolower($value);
-
-        if ($lower === 'true') {
-            return true;
-        }
-
-        if ($lower === 'false') {
-            return false;
-        }
-
-        if (str_contains($value, ',')) {
-            return explode(',', $value);
-        }
-
-        return $value;
+        return str_contains($value, ',') ? explode(',', $value) : $value;
     }
 
     private function filterName(): string
