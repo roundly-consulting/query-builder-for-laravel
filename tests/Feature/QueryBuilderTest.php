@@ -7,6 +7,9 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use RoundlyConsulting\QueryBuilder\AllowedFilter;
 use RoundlyConsulting\QueryBuilder\AllowedSort;
+use RoundlyConsulting\QueryBuilder\Exceptions\AllowListAlreadyApplied;
+use RoundlyConsulting\QueryBuilder\Exceptions\QueryBuilderException;
+use RoundlyConsulting\QueryBuilder\Exceptions\UnknownFilter;
 use RoundlyConsulting\QueryBuilder\QueryBuilder;
 use RoundlyConsulting\QueryBuilder\Tests\Support\Models\Post;
 
@@ -138,4 +141,72 @@ it('applies filters and sorts exactly once', function (): void {
 
     expect($first)->toBe($second)
         ->and($first->getQuery()->wheres)->toHaveCount(1);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Declaration order
+|--------------------------------------------------------------------------
+|
+| The request is applied the first time a call is forwarded to the builder, because a
+| forwarded call may run the query. An allow-list declared after that point can no longer
+| take effect, so it is refused loudly — before, it was silently ignored: a `filter[status]`
+| the controller allowed answered 400, and a default sort vanished.
+|
+*/
+
+it('refuses allowedFilters() declared after a forwarded builder call', function (): void {
+    expect(fn () => qb('/')->where('views', '>', 0)->allowedFilters('status'))
+        ->toThrow(AllowListAlreadyApplied::class, 'allowedFilters() was called after the request had already been applied to the query by where()');
+});
+
+it('refuses allowedSorts() declared after a forwarded builder call', function (): void {
+    expect(fn () => qb('/')->with('author')->allowedSorts('title'))
+        ->toThrow(AllowListAlreadyApplied::class, 'allowedSorts() was called after the request had already been applied to the query by with()');
+});
+
+it('refuses defaultSort() declared after a forwarded builder call', function (): void {
+    expect(fn () => qb('/')->where('views', '>', 0)->defaultSort('-views'))
+        ->toThrow(AllowListAlreadyApplied::class, 'defaultSort() was called after the request had already been applied to the query by where()');
+});
+
+it('checks a filtered request against the allow-list as it stood when it was applied', function (): void {
+    // The misordered chain cannot be told apart from an endpoint that allows nothing at the
+    // moment the request is applied, so a client's filter answers that allow-list's 400 —
+    // the unfiltered request above is the one that surfaces the ordering mistake.
+    expect(fn () => qb('/?filter[status]=draft')->where('views', '>', 0)->allowedFilters('status'))
+        ->toThrow(UnknownFilter::class);
+});
+
+it('refuses a declaration after getEloquentBuilder()', function (): void {
+    $builder = qb('/')->allowedFilters('status');
+    $builder->getEloquentBuilder();
+
+    expect(fn () => $builder->allowedFilters('views'))
+        ->toThrow(AllowListAlreadyApplied::class, 'by getEloquentBuilder()');
+});
+
+it('is a logic exception carrying the package marker', function (): void {
+    try {
+        qb('/')->where('views', '>', 0)->allowedSorts('views');
+    } catch (AllowListAlreadyApplied $exception) {
+        expect($exception)->toBeInstanceOf(LogicException::class)
+            ->toBeInstanceOf(QueryBuilderException::class);
+
+        return;
+    }
+
+    test()->fail('Expected AllowListAlreadyApplied.');
+});
+
+it('applies an allow-list declared before a forwarded builder call', function (): void {
+    seedPosts();
+
+    $result = qb('/?filter[status]=published')
+        ->allowedFilters('status')
+        ->defaultSort('-views')
+        ->where('views', '>', 15)
+        ->get();
+
+    expect($result->pluck('title')->all())->toBe(['Alpha', 'Gamma']);
 });

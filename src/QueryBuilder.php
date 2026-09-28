@@ -11,11 +11,19 @@ use Illuminate\Http\Request;
 use RoundlyConsulting\QueryBuilder\DataTransferObjects\SortParameter;
 use RoundlyConsulting\QueryBuilder\Enums\SortDirection;
 use RoundlyConsulting\QueryBuilder\Enums\UnknownParameterMode;
+use RoundlyConsulting\QueryBuilder\Exceptions\AllowListAlreadyApplied;
 use RoundlyConsulting\QueryBuilder\Exceptions\UnknownFilter;
 use RoundlyConsulting\QueryBuilder\Exceptions\UnknownSort;
 use RoundlyConsulting\QueryBuilder\Sorts\FieldSort;
 
 /**
+ * Declare the allow-list first, then use it like any Eloquent builder.
+ *
+ * The request is applied the first time a call is forwarded to the underlying builder
+ * (`where()`, `with()`, `get()`, …), because a forwarded call may be the one that runs the
+ * query. `allowedFilters()`, `allowedSorts()` and `defaultSort()` after that point throw
+ * {@see AllowListAlreadyApplied} rather than being silently ignored.
+ *
  * @mixin EloquentBuilder<Model>
  */
 final class QueryBuilder
@@ -28,7 +36,8 @@ final class QueryBuilder
 
     private ?string $defaultSort = null;
 
-    private bool $applied = false;
+    /** The forwarded call that applied the request, or `null` while it is still pending. */
+    private ?string $appliedBy = null;
 
     /**
      * @param  EloquentBuilder<Model>  $subject
@@ -53,6 +62,8 @@ final class QueryBuilder
      */
     public function allowedFilters(AllowedFilter|string ...$filters): self
     {
+        $this->ensureNotApplied(__FUNCTION__);
+
         foreach ($filters as $filter) {
             $filter = is_string($filter) ? AllowedFilter::exact($filter) : $filter;
 
@@ -67,6 +78,8 @@ final class QueryBuilder
      */
     public function allowedSorts(AllowedSort|string ...$sorts): self
     {
+        $this->ensureNotApplied(__FUNCTION__);
+
         foreach ($sorts as $sort) {
             $sort = is_string($sort) ? AllowedSort::field($sort) : $sort;
 
@@ -81,6 +94,8 @@ final class QueryBuilder
      */
     public function defaultSort(string $sort): self
     {
+        $this->ensureNotApplied(__FUNCTION__);
+
         $this->defaultSort = $sort;
 
         return $this;
@@ -91,7 +106,7 @@ final class QueryBuilder
      */
     public function getEloquentBuilder(): EloquentBuilder
     {
-        $this->applyOnce();
+        $this->applyOnce(__FUNCTION__);
 
         return $this->subject;
     }
@@ -101,7 +116,7 @@ final class QueryBuilder
      */
     public function __call(string $name, array $arguments): mixed
     {
-        $this->applyOnce();
+        $this->applyOnce($name);
 
         if ($name === 'paginate' || $name === 'simplePaginate') {
             $arguments = $this->withConfiguredPageName($arguments);
@@ -134,16 +149,26 @@ final class QueryBuilder
         return $arguments;
     }
 
-    private function applyOnce(): void
+    private function applyOnce(string $by): void
     {
-        if ($this->applied) {
+        if ($this->appliedBy !== null) {
             return;
         }
 
-        $this->applied = true;
+        $this->appliedBy = $by;
 
         $this->applyFilters();
         $this->applySorts();
+    }
+
+    /**
+     * Refuse a declaration the request can no longer honour — see {@see AllowListAlreadyApplied}.
+     */
+    private function ensureNotApplied(string $declaration): void
+    {
+        if ($this->appliedBy !== null) {
+            throw AllowListAlreadyApplied::make($declaration, $this->appliedBy);
+        }
     }
 
     private function applyFilters(): void
