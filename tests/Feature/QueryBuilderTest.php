@@ -10,6 +10,7 @@ use RoundlyConsulting\QueryBuilder\AllowedSort;
 use RoundlyConsulting\QueryBuilder\Exceptions\AllowListAlreadyApplied;
 use RoundlyConsulting\QueryBuilder\Exceptions\QueryBuilderException;
 use RoundlyConsulting\QueryBuilder\Exceptions\UnknownFilter;
+use RoundlyConsulting\QueryBuilder\Exceptions\UnknownSort;
 use RoundlyConsulting\QueryBuilder\QueryBuilder;
 use RoundlyConsulting\QueryBuilder\Tests\Support\Models\Post;
 
@@ -209,4 +210,63 @@ it('applies an allow-list declared before a forwarded builder call', function ()
         ->get();
 
     expect($result->pluck('title')->all())->toBe(['Alpha', 'Gamma']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Unknown sorts in ignore mode, and the sort cap
+|--------------------------------------------------------------------------
+*/
+
+it('falls back to the default sort when ignore mode drops every requested sort', function (): void {
+    // An ignored sort is read as if absent — otherwise `sort=bogus` handed back pages in
+    // whatever order the database chose, unstable from one page to the next.
+    config()->set('query-builder.mode.unknown_sort', 'ignore');
+    seedPosts();
+
+    $result = qb('/?sort=bogus,-nope')->allowedSorts('views')->defaultSort('-views')->get();
+
+    expect($result->pluck('title')->all())->toBe(['Alpha', 'Gamma', 'Beta']);
+});
+
+it('keeps the requested sort over the default when ignore mode drops only some', function (): void {
+    config()->set('query-builder.mode.unknown_sort', 'ignore');
+    seedPosts();
+
+    $result = qb('/?sort=bogus,views')->allowedSorts('views')->defaultSort('-views')->get();
+
+    expect($result->pluck('title')->all())->toBe(['Beta', 'Gamma', 'Alpha']);
+});
+
+it('counts only allow-listed sorts towards max_sorts in ignore mode', function (): void {
+    config()->set('query-builder.mode.unknown_sort', 'ignore');
+    config()->set('query-builder.limits.max_sorts', 2);
+
+    $orders = qb('/?sort=a,b,c,-views,title,status')
+        ->allowedSorts('views', 'title', 'status')
+        ->getEloquentBuilder()
+        ->getQuery()
+        ->orders;
+
+    expect(array_column($orders, 'column'))->toBe(['views', 'title'])
+        ->and(array_column($orders, 'direction'))->toBe(['desc', 'asc']);
+});
+
+it('applies at most max_sorts allow-listed sorts', function (): void {
+    config()->set('query-builder.limits.max_sorts', 2);
+
+    $orders = qb('/?sort=views,-title,status')
+        ->allowedSorts('views', 'title', 'status')
+        ->getEloquentBuilder()
+        ->getQuery()
+        ->orders;
+
+    expect(array_column($orders, 'column'))->toBe(['views', 'title']);
+});
+
+it('still rejects an unknown sort that comes before the cap is reached', function (): void {
+    config()->set('query-builder.limits.max_sorts', 2);
+
+    expect(fn () => qb('/?sort=views,bogus,title')->allowedSorts('views', 'title')->get())
+        ->toThrow(UnknownSort::class);
 });

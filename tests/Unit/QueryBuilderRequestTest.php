@@ -98,14 +98,20 @@ it('caps the length of each value in a list', function (): void {
         ->toBe(['title' => ['abc', 'ghi']]);
 });
 
-it('caps the number of applied sorts', function (): void {
+it('leaves the sort cap to the builder, which alone knows which sorts count', function (): void {
     config()->set('query-builder.limits.max_sorts', 2);
 
-    $sorts = qbRequest('/?sort=a,b,c,d')->sorts();
+    $request = qbRequest('/?sort=a,b,c,d');
 
-    expect($sorts)->toHaveCount(2)
-        ->and($sorts[0]->property)->toBe('a')
-        ->and($sorts[1]->property)->toBe('b');
+    expect(array_map(static fn ($sort): string => $sort->property, $request->sorts()))
+        ->toBe(['a', 'b', 'c', 'd'])
+        ->and($request->maxSorts())->toBe(2);
+});
+
+it('never lets the sort cap fall below one', function (): void {
+    config()->set('query-builder.limits.max_sorts', 0);
+
+    expect(qbRequest('/')->maxSorts())->toBe(1);
 });
 
 it('deduplicates repeated sort tokens keeping the first occurrence', function (): void {

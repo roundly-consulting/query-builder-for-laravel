@@ -8,7 +8,6 @@ use Illuminate\Contracts\Database\Query\Builder as BuilderContract;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
-use RoundlyConsulting\QueryBuilder\DataTransferObjects\SortParameter;
 use RoundlyConsulting\QueryBuilder\Enums\SortDirection;
 use RoundlyConsulting\QueryBuilder\Enums\UnknownParameterMode;
 use RoundlyConsulting\QueryBuilder\Exceptions\AllowListAlreadyApplied;
@@ -191,29 +190,50 @@ final class QueryBuilder
         }
     }
 
+    /**
+     * Apply the requested sorts the allow-list knows, left to right, at most
+     * `limits.max_sorts` of them.
+     *
+     * Only an allow-listed sort takes a place under the cap, so in `ignore` mode an unknown
+     * token cannot crowd out a valid one behind it. Tokens past the cap are never looked at
+     * — in `reject` mode too, exactly as the cap has always read. When nothing requested
+     * survives (no `sort`, or every token ignored) the default sort applies: an ignored sort
+     * reads as if it were absent, rather than handing pages back in whatever order the
+     * database picks.
+     */
     private function applySorts(): void
     {
-        $sorts = $this->request->sorts();
+        $applicable = [];
+        $unknown = [];
 
-        if ($sorts === []) {
-            $this->applyDefaultSort();
+        foreach ($this->request->sorts() as $sort) {
+            $allowed = $this->allowedSorts[$sort->property] ?? null;
 
-            return;
+            if ($allowed === null) {
+                $unknown[] = $sort->property;
+
+                continue;
+            }
+
+            $applicable[] = [$allowed, $sort];
+
+            if (count($applicable) >= $this->request->maxSorts()) {
+                break;
+            }
         }
-
-        $unknown = array_values(array_diff(
-            array_map(static fn (SortParameter $sort): string => $sort->property, $sorts),
-            array_keys($this->allowedSorts),
-        ));
 
         if ($unknown !== [] && $this->mode('query-builder.mode.unknown_sort') === UnknownParameterMode::Reject) {
             throw UnknownSort::make($unknown, array_keys($this->allowedSorts));
         }
 
-        foreach ($sorts as $sort) {
-            $allowed = $this->allowedSorts[$sort->property] ?? null;
+        if ($applicable === []) {
+            $this->applyDefaultSort();
 
-            $allowed?->apply($this->subject, $sort->direction);
+            return;
+        }
+
+        foreach ($applicable as [$allowed, $sort]) {
+            $allowed->apply($this->subject, $sort->direction);
         }
     }
 

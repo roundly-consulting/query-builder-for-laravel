@@ -51,7 +51,12 @@ final class QueryBuilderRequest
     }
 
     /**
-     * The ordered sort parameters parsed from the sort string.
+     * The ordered sort parameters parsed from the sort string, a repeated property keeping
+     * its first occurrence.
+     *
+     * Not capped here: `limits.max_sorts` counts only the sorts an endpoint allows, which
+     * this class cannot know, so {@see QueryBuilder} applies it ({@see self::maxSorts()}) —
+     * an unknown token dropped in `ignore` mode must not use up a place a valid one needs.
      *
      * @return list<SortParameter>
      */
@@ -85,13 +90,15 @@ final class QueryBuilderRequest
                 property: $property,
                 direction: SortDirection::fromToken($token),
             );
-
-            if (count($sorts) >= $this->maxSorts()) {
-                break;
-            }
         }
 
         return $sorts;
+    }
+
+    /** The most allow-listed sorts one request may apply (`limits.max_sorts`, at least 1). */
+    public function maxSorts(): int
+    {
+        return max(1, (int) config('query-builder.limits.max_sorts', 5));
     }
 
     /**
@@ -170,11 +177,6 @@ final class QueryBuilderRequest
     private function maxValueLength(): int
     {
         return max(1, (int) config('query-builder.limits.max_value_length', 255));
-    }
-
-    private function maxSorts(): int
-    {
-        return max(1, (int) config('query-builder.limits.max_sorts', 5));
     }
 
     /**
