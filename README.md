@@ -92,8 +92,8 @@ return [
 | `parameters.sort` | string | `sort` | Query-string key that holds the sort string. |
 | `pagination.page_name` | string | `page` | Paginator page parameter name — applied automatically when you `paginate()`/`simplePaginate()` a `QueryBuilder`, and readable from a `HasPageSize` request via `pageName()`. |
 | `pagination.per_page_name` | string | `per_page` | Page-size parameter name (used by `HasPageSize`). |
-| `pagination.default_per_page` | int | `20` | Page size used when `per_page` is absent or invalid. |
-| `pagination.max_per_page` | int | `100` | Upper bound — `per_page` above it is a 422; also a hard cap. |
+| `pagination.default_per_page` | int | `20` | Page size used when `per_page` is absent or invalid. At least `1` and at most `max_per_page`. |
+| `pagination.max_per_page` | int | `100` | Upper bound — `per_page` above it is a 422; also a hard cap. At least `1`. |
 | `mode.unknown_filter` | string | `reject` | `reject` (HTTP 400) or `ignore` (drop the key) for un-allow-listed filters. |
 | `mode.unknown_sort` | string | `reject` | `reject` (HTTP 400) or `ignore` (drop the key) for un-allow-listed sorts. When `ignore` drops every requested sort, `defaultSort()` applies. |
 | `limits.max_filter_values` | int | `50` | Comma/array items kept per filter value; extras are dropped (DoS guard). |
@@ -102,6 +102,12 @@ return [
 
 The package works with zero host configuration — the shipped defaults are the intended wire
 contract.
+
+Every key is read strictly: an unset (`null`) key takes its default, and a present but invalid
+value throws package-toolkit's `InvalidConfigurationException` naming the key. The parameter
+names must be non-empty strings, the limits and page sizes whole numbers of at least `1`, and the
+modes exactly `reject` or `ignore` — a typo'd mode throws rather than quietly falling back to
+`reject`, and a junk limit is no longer cast and clamped to `1`.
 
 ## Usage
 
