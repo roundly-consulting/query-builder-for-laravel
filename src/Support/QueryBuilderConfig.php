@@ -9,8 +9,9 @@ use RoundlyConsulting\PackageToolkit\Support\Config;
 use RoundlyConsulting\QueryBuilder\Enums\UnknownParameterMode;
 
 /**
- * Strict reads of the host's query-builder settings. An unset (null) key takes its default;
- * a present but invalid value throws {@see InvalidConfigurationException} naming the key.
+ * Strict reads of the host's query-builder settings. A key that is not set (absent, null or
+ * blank — a host's `KEY=`) takes its default; any other invalid value throws
+ * {@see InvalidConfigurationException} naming the key.
  * A typo'd mode no longer quietly becomes Reject, and a junk limit is no longer `(int)`
  * cast and clamped to 1.
  *
@@ -76,11 +77,11 @@ final class QueryBuilderConfig
 
     private static function string(string $key, mixed $value, string $default): string
     {
-        if ($value === null) {
+        if ($value === null || (is_string($value) && trim($value) === '')) {
             return $default;
         }
 
-        if (! is_string($value) || trim($value) === '') {
+        if (! is_string($value)) {
             throw InvalidConfigurationException::notAString($key, $value);
         }
 
