@@ -38,6 +38,5 @@ it('ships exactly the config keys it reads', function (): void {
         // parameters, bounds and modes below are all read by the request/filter code too —
         // which is the point: if a key is genuinely read nowhere but `about`, that is bug
         // #32 again and this should say so.
-        'extraReadPrefixes' => ['query-builder.'],
     ]);
 });
