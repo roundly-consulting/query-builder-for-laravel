@@ -7,6 +7,7 @@ namespace RoundlyConsulting\QueryBuilder;
 use Illuminate\Http\Request;
 use RoundlyConsulting\QueryBuilder\DataTransferObjects\SortParameter;
 use RoundlyConsulting\QueryBuilder\Enums\SortDirection;
+use RoundlyConsulting\QueryBuilder\Support\QueryBuilderConfig;
 
 /**
  * Thin adapter over the framework Request that reads and normalises the frozen
@@ -95,10 +96,10 @@ final class QueryBuilderRequest
         return $sorts;
     }
 
-    /** The most allow-listed sorts one request may apply (`limits.max_sorts`, at least 1). */
+    /** The most allow-listed sorts one request may apply (`limits.max_sorts`, at least 1; anything else throws). */
     public function maxSorts(): int
     {
-        return max(1, (int) config('query-builder.limits.max_sorts', 5));
+        return QueryBuilderConfig::maxSorts();
     }
 
     /**
@@ -171,12 +172,12 @@ final class QueryBuilderRequest
 
     private function maxFilterValues(): int
     {
-        return max(1, (int) config('query-builder.limits.max_filter_values', 50));
+        return QueryBuilderConfig::maxFilterValues();
     }
 
     private function maxValueLength(): int
     {
-        return max(1, (int) config('query-builder.limits.max_value_length', 255));
+        return QueryBuilderConfig::maxValueLength();
     }
 
     /**
@@ -189,11 +190,11 @@ final class QueryBuilderRequest
 
     private function filterName(): string
     {
-        return (string) config('query-builder.parameters.filter', 'filter');
+        return QueryBuilderConfig::filterParameter();
     }
 
     private function sortName(): string
     {
-        return (string) config('query-builder.parameters.sort', 'sort');
+        return QueryBuilderConfig::sortParameter();
     }
 }

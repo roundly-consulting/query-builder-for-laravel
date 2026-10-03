@@ -6,6 +6,7 @@ namespace RoundlyConsulting\QueryBuilder;
 
 use RoundlyConsulting\PackageToolkit\Package;
 use RoundlyConsulting\PackageToolkit\PackageServiceProvider;
+use RoundlyConsulting\QueryBuilder\Support\QueryBuilderConfig;
 
 final class QueryBuilderServiceProvider extends PackageServiceProvider
 {
@@ -28,25 +29,17 @@ final class QueryBuilderServiceProvider extends PackageServiceProvider
     private function aboutData(): array
     {
         return [
-            'Filter parameter' => (string) config('query-builder.parameters.filter', 'filter'),
-            'Sort parameter' => (string) config('query-builder.parameters.sort', 'sort'),
-            'Page parameters' => sprintf(
-                '%s / %s',
-                (string) config('query-builder.pagination.page_name', 'page'),
-                (string) config('query-builder.pagination.per_page_name', 'per_page'),
-            ),
-            'Page size' => sprintf(
-                '%d default, %d max',
-                (int) config('query-builder.pagination.default_per_page', 20),
-                (int) config('query-builder.pagination.max_per_page', 100),
-            ),
-            'Unknown filter' => strtoupper((string) config('query-builder.mode.unknown_filter', 'reject')),
-            'Unknown sort' => strtoupper((string) config('query-builder.mode.unknown_sort', 'reject')),
+            'Filter parameter' => QueryBuilderConfig::filterParameter(),
+            'Sort parameter' => QueryBuilderConfig::sortParameter(),
+            'Page parameters' => sprintf('%s / %s', QueryBuilderConfig::pageName(), QueryBuilderConfig::perPageName()),
+            'Page size' => sprintf('%d default, %d max', QueryBuilderConfig::defaultPerPage(), QueryBuilderConfig::maxPerPage()),
+            'Unknown filter' => strtoupper(QueryBuilderConfig::unknownFilterMode()->value),
+            'Unknown sort' => strtoupper(QueryBuilderConfig::unknownSortMode()->value),
             'Request limits' => sprintf(
                 '%d value(s), %d char(s), %d sort(s)',
-                (int) config('query-builder.limits.max_filter_values', 50),
-                (int) config('query-builder.limits.max_value_length', 255),
-                (int) config('query-builder.limits.max_sorts', 5),
+                QueryBuilderConfig::maxFilterValues(),
+                QueryBuilderConfig::maxValueLength(),
+                QueryBuilderConfig::maxSorts(),
             ),
         ];
     }

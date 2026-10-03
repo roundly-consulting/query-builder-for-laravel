@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Validator;
 use RoundlyConsulting\QueryBuilder\DataTransferObjects\RequestedFilterValues;
 use RoundlyConsulting\QueryBuilder\Enums\RequestedOperator;
 use RoundlyConsulting\QueryBuilder\Support\FilterSentinel;
+use RoundlyConsulting\QueryBuilder\Support\QueryBuilderConfig;
 
 /**
  * Validate a filter parameter's VALUE, ignoring the operator prefix and sentinels the
@@ -100,7 +101,7 @@ final readonly class FilterValue implements ValidationRule
 
         $parsed = RequestedFilterValues::parse(count($exploded) === 1 ? $exploded[0] : $exploded, $this->operators);
 
-        $limit = max(1, (int) config('query-builder.limits.max_filter_values', 50));
+        $limit = QueryBuilderConfig::maxFilterValues();
 
         foreach (array_slice($parsed->values, 0, $limit) as $item) {
             if (in_array($item, $this->sentinels, true)) {

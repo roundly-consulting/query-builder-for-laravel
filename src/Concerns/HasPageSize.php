@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace RoundlyConsulting\QueryBuilder\Concerns;
 
 use Illuminate\Foundation\Http\FormRequest;
+use RoundlyConsulting\QueryBuilder\Support\QueryBuilderConfig;
 
 /**
  * Mix into a FormRequest to validate and resolve the `per_page` page size.
@@ -50,21 +51,21 @@ trait HasPageSize
      */
     public function pageName(): string
     {
-        return (string) config('query-builder.pagination.page_name', 'page');
+        return QueryBuilderConfig::pageName();
     }
 
     private function perPageName(): string
     {
-        return (string) config('query-builder.pagination.per_page_name', 'per_page');
+        return QueryBuilderConfig::perPageName();
     }
 
     private function defaultPerPage(): int
     {
-        return (int) config('query-builder.pagination.default_per_page', 20);
+        return QueryBuilderConfig::defaultPerPage();
     }
 
     private function maxPerPage(): int
     {
-        return (int) config('query-builder.pagination.max_per_page', 100);
+        return QueryBuilderConfig::maxPerPage();
     }
 }

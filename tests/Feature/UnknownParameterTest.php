@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 use RoundlyConsulting\QueryBuilder\Exceptions\UnknownFilter;
 use RoundlyConsulting\QueryBuilder\Exceptions\UnknownSort;
 use RoundlyConsulting\QueryBuilder\QueryBuilder;
@@ -52,18 +53,22 @@ it('drops unknown sorts silently in ignore mode', function (): void {
         ->assertJsonCount(1);
 });
 
-it('falls back to reject when the unknown-filter mode config is invalid', function (): void {
+it('throws for an invalid unknown-filter mode instead of rejecting (strict config)', function (): void {
     config()->set('query-builder.mode.unknown_filter', 'bogus');
 
-    $this->getJson('/qb-posts?filter[bogus]=1')
-        ->assertStatus(400);
+    $this->withoutExceptionHandling();
+
+    expect(fn () => $this->getJson('/qb-posts?filter[bogus]=1'))
+        ->toThrow(InvalidConfigurationException::class, 'query-builder.mode.unknown_filter');
 });
 
-it('falls back to reject when the unknown-sort mode config is invalid', function (): void {
+it('throws for an invalid unknown-sort mode instead of rejecting (strict config)', function (): void {
     config()->set('query-builder.mode.unknown_sort', 'bogus');
 
-    $this->getJson('/qb-posts?sort=-bogus')
-        ->assertStatus(400);
+    $this->withoutExceptionHandling();
+
+    expect(fn () => $this->getJson('/qb-posts?sort=-bogus'))
+        ->toThrow(InvalidConfigurationException::class, 'query-builder.mode.unknown_sort');
 });
 
 it('throws an http exception carrying a 400 status', function (): void {

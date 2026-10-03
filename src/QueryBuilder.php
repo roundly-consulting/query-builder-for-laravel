@@ -14,6 +14,7 @@ use RoundlyConsulting\QueryBuilder\Exceptions\AllowListAlreadyApplied;
 use RoundlyConsulting\QueryBuilder\Exceptions\UnknownFilter;
 use RoundlyConsulting\QueryBuilder\Exceptions\UnknownSort;
 use RoundlyConsulting\QueryBuilder\Sorts\FieldSort;
+use RoundlyConsulting\QueryBuilder\Support\QueryBuilderConfig;
 
 /**
  * Declare the allow-list first, then use it like any Eloquent builder.
@@ -143,7 +144,7 @@ final class QueryBuilder
             return $arguments;
         }
 
-        $arguments['pageName'] = (string) config('query-builder.pagination.page_name', 'page');
+        $arguments['pageName'] = QueryBuilderConfig::pageName();
 
         return $arguments;
     }
@@ -179,7 +180,7 @@ final class QueryBuilder
             array_keys($this->allowedFilters),
         ));
 
-        if ($unknown !== [] && $this->mode('query-builder.mode.unknown_filter') === UnknownParameterMode::Reject) {
+        if ($unknown !== [] && QueryBuilderConfig::unknownFilterMode() === UnknownParameterMode::Reject) {
             throw UnknownFilter::make($unknown, array_keys($this->allowedFilters));
         }
 
@@ -222,7 +223,7 @@ final class QueryBuilder
             }
         }
 
-        if ($unknown !== [] && $this->mode('query-builder.mode.unknown_sort') === UnknownParameterMode::Reject) {
+        if ($unknown !== [] && QueryBuilderConfig::unknownSortMode() === UnknownParameterMode::Reject) {
             throw UnknownSort::make($unknown, array_keys($this->allowedSorts));
         }
 
@@ -261,18 +262,5 @@ final class QueryBuilder
 
             (new FieldSort)->apply($this->subject, $direction, $property);
         }
-    }
-
-    /**
-     * The mode configured under a full config key (passed whole, so every key
-     * this package reads is a real string literal a config audit can find).
-     */
-    private function mode(string $key): UnknownParameterMode
-    {
-        // Fail closed: an invalid/typo'd config value falls back to the secure
-        // Reject default rather than throwing a ValueError (uncaught 500).
-        return UnknownParameterMode::tryFrom(
-            (string) config($key, 'reject'),
-        ) ?? UnknownParameterMode::Reject;
     }
 }

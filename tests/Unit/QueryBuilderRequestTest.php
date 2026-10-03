@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Http\Request;
+use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 use RoundlyConsulting\QueryBuilder\Enums\SortDirection;
 use RoundlyConsulting\QueryBuilder\QueryBuilderRequest;
 
@@ -108,10 +109,11 @@ it('leaves the sort cap to the builder, which alone knows which sorts count', fu
         ->and($request->maxSorts())->toBe(2);
 });
 
-it('never lets the sort cap fall below one', function (): void {
+it('throws for a sort cap below one instead of clamping it (strict config)', function (): void {
     config()->set('query-builder.limits.max_sorts', 0);
 
-    expect(qbRequest('/')->maxSorts())->toBe(1);
+    expect(fn () => qbRequest('/')->maxSorts())
+        ->toThrow(InvalidConfigurationException::class, 'query-builder.limits.max_sorts');
 });
 
 it('deduplicates repeated sort tokens keeping the first occurrence', function (): void {
