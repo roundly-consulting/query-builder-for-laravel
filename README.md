@@ -103,9 +103,9 @@ return [
 The package works with zero host configuration — the shipped defaults are the intended wire
 contract.
 
-Every key is read strictly: an unset (`null`) key takes its default, and a present but invalid
-value throws package-toolkit's `InvalidConfigurationException` naming the key. The parameter
-names must be non-empty strings, the limits and page sizes whole numbers of at least `1`, and the
+Every key is read strictly: a key that is not set — absent, `null` or blank (a host's `KEY=`) —
+takes its default, and any other invalid value throws package-toolkit's
+`InvalidConfigurationException` naming the key. The parameter names must be strings, the limits and page sizes whole numbers of at least `1`, and the
 modes exactly `reject` or `ignore` — a typo'd mode throws rather than quietly falling back to
 `reject`, and a junk limit is no longer cast and clamped to `1`.
 
