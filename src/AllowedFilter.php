@@ -187,14 +187,19 @@ final class AllowedFilter
      * `exact()` would compare the whole document and `partial()` would match a value
      * inside another one — see {@see JsonContainsOperatorFilter}.
      *
+     * JSON membership is type-strict, so declare the elements' `$shape` when they are not
+     * text: `FilterValueShape::Id` for an id array (`[5, 7]`) binds integers. A value that
+     * does not fit the shape matches nothing (a negation of it excludes nothing).
+     *
      * @param  list<RequestedOperator>  $operators
      */
     public static function jsonContains(
         string $name,
         ?string $internalName = null,
         array $operators = [RequestedOperator::Not],
+        FilterValueShape $shape = FilterValueShape::Text,
     ): self {
-        return new self($name, $internalName ?? $name, new JsonContainsOperatorFilter($operators));
+        return new self($name, $internalName ?? $name, new JsonContainsOperatorFilter($operators, $shape));
     }
 
     /**
