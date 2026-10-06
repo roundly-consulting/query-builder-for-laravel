@@ -6,6 +6,12 @@ All notable changes to `query-builder-for-laravel` are documented in this file. 
 
 ## Unreleased
 
+### Fixed
+
+- `AllowedFilter::operator($name, FilterOperator::NotEqual)` with a comma list now means "none of
+  these" (`not in`); it used to OR the `!=` clauses and match every row. It stays plain SQL, so
+  rows where the column is NULL are not included (the client-chosen `not:` still includes them).
+
 ## 1.0.1 - 2026-10-04
 
 ### Changed

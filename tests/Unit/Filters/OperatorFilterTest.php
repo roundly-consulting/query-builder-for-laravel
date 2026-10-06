@@ -36,3 +36,22 @@ it('groups an array value into an OR of the comparison', function (): void {
         ->and($query->toSql())->toContain('('.wrapped('views').' >= ? or '.wrapped('views').' >= ?)')
         ->and($query->pluck('title')->all())->toBe(['Low', 'Mid', 'High']);
 });
+
+it('reads a NotEqual list as "none of these", leaving NULL rows out like plain SQL', function (): void {
+    // An OR of `!=` clauses matches every row: a value is always "not" one of two things.
+    // `views` cannot be NULL, so `summary` carries the plain-SQL half: `!=` never matches NULL.
+    Post::query()->where('title', 'Low')->update(['summary' => 'draft']);
+    Post::query()->where('title', 'Mid')->update(['summary' => 'archived']);
+    Post::query()->where('title', 'High')->update(['summary' => 'published']);
+    Post::create(['title' => 'Blank', 'views' => 1]);
+
+    $views = Post::query();
+    (new OperatorFilter(FilterOperator::NotEqual))->apply($views, [5, 20], 'views');
+
+    $summary = Post::query();
+    (new OperatorFilter(FilterOperator::NotEqual))->apply($summary, ['draft', 'archived'], 'summary');
+
+    expect($views->toSql())->toContain(wrapped('views').' not in (?, ?)')
+        ->and($views->pluck('title')->sort()->values()->all())->toBe(['Blank', 'Mid'])
+        ->and($summary->pluck('title')->all())->toBe(['High']);
+});

@@ -11,13 +11,9 @@ use RoundlyConsulting\QueryBuilder\Contracts\Filter;
 /**
  * `!=`, with the multi-value semantics a NEGATION needs.
  *
- * Not `OperatorFilter(NotEqual)`: that ORs an array of values, and a grouped OR of
- * negations matches nearly every row (a value is always "not" one of two things). A
- * client asking `not:draft,archived` means "neither", so the values are ANDed —
- * `whereNotIn` says exactly that.
- *
- * `OperatorFilter`'s OR is correct for the operators it is used with (`=`, `>`, `<`),
- * so it is left alone rather than made conditional.
+ * A client asking `not:draft,archived` means "neither", so the values are ANDed —
+ * `whereNotIn` says exactly that, as `OperatorFilter(NotEqual)` does for a list. What
+ * this adds over that plain-SQL server-side operator is the NULL reading below.
  *
  * **A NULL column is included.** SQL's `status != 'draft'` is UNKNOWN — and therefore
  * false — when `status` is NULL, but a person filtering a list for "not draft" plainly
