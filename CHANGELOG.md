@@ -6,12 +6,19 @@ All notable changes to `query-builder-for-laravel` are documented in this file. 
 
 ## Unreleased
 
+## 1.1.0 - 2026-10-06
+
 ### Added
 
 - `AllowedFilter::jsonContains()` (and `JsonContainsOperatorFilter`) take an optional
   `FilterValueShape $shape` (default `Text`, unchanged). JSON membership is type-strict, so
   `shape: FilterValueShape::Id` binds the values as integers and `filter[label_ids]=5` matches
   `[5, 7]`; a value that does not fit the shape matches nothing, and its negation excludes nothing.
+
+### Changed
+
+- Documentation: the README hero image uses an absolute URL, so it renders on Packagist and other
+  sites.
 
 ### Fixed
 
