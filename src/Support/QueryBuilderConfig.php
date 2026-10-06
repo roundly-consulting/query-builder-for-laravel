@@ -49,10 +49,19 @@ final class QueryBuilderConfig
         return Config::integer('query-builder.pagination.max_per_page', 100, min: 1);
     }
 
-    /** At most the cap: a default above it would hand out pages the cap exists to refuse. */
+    /**
+     * At most the cap: a default above it would hand out pages the cap exists to refuse.
+     *
+     * So the fallback for an unset default is capped as well. A host that publishes a
+     * `pagination` block with only `max_per_page` replaces the package's whole block
+     * (`mergeConfigFrom` merges top-level keys only), and a fixed 20 above a lower cap would
+     * throw on every request. A default the host sets explicitly above the cap still throws.
+     */
     public static function defaultPerPage(): int
     {
-        return Config::integer('query-builder.pagination.default_per_page', 20, min: 1, max: self::maxPerPage());
+        $max = self::maxPerPage();
+
+        return Config::integer('query-builder.pagination.default_per_page', min(20, $max), min: 1, max: $max);
     }
 
     public static function filterParameter(): string

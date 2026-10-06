@@ -8,6 +8,7 @@ use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 use RoundlyConsulting\QueryBuilder\Exceptions\UnknownFilter;
 use RoundlyConsulting\QueryBuilder\QueryBuilder;
 use RoundlyConsulting\QueryBuilder\QueryBuilderRequest;
+use RoundlyConsulting\QueryBuilder\QueryBuilderServiceProvider;
 use RoundlyConsulting\QueryBuilder\Tests\Support\Models\Post;
 use RoundlyConsulting\QueryBuilder\Tests\Support\Requests\ListRequest;
 
@@ -79,6 +80,30 @@ it('refuses a junk page size, or a default above the cap (strict config)', funct
     'default zero' => ['query-builder.pagination.default_per_page', 0],
     'default above max' => ['query-builder.pagination.default_per_page', 500],
     'max decimal' => ['query-builder.pagination.max_per_page', '1.5'],
+]);
+
+it('caps an unset default page size at a lower max instead of throwing (strict config)', function (Closure $configure): void {
+    $configure();
+
+    Artisan::call('about', ['--only' => 'query-builder']);
+
+    expect(ListRequest::create('/')->perPage())->toBe(10)
+        ->and(Artisan::output())->toContain('10 default, 10 max');
+})->with([
+    // A host `pagination` block replaces the package's whole block — `mergeConfigFrom`
+    // merges top-level keys only — so `default_per_page` is simply absent.
+    'absent' => [function (): void {
+        config()->set('query-builder', ['pagination' => ['max_per_page' => 10]]);
+        (new QueryBuilderServiceProvider(app()))->register();
+    }],
+    'null' => [fn () => config()->set([
+        'query-builder.pagination.default_per_page' => null,
+        'query-builder.pagination.max_per_page' => 10,
+    ])],
+    'blank' => [fn () => config()->set([
+        'query-builder.pagination.default_per_page' => ' ',
+        'query-builder.pagination.max_per_page' => 10,
+    ])],
 ]);
 
 it('refuses a non-string parameter name (strict config)', function (string $key, mixed $value, Closure $read): void {

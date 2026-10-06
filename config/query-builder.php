@@ -30,7 +30,8 @@ return [
     | Names and bounds used by the HasPageSize FormRequest trait. `per_page`
     | is validated against `max_per_page` (yielding a 422 above it) and also
     | hard-capped inside perPage() as defence in depth. `default_per_page` is
-    | used when `per_page` is absent or invalid.
+    | used when `per_page` is absent or invalid; left unset, it is 20, or
+    | `max_per_page` when that is lower. Set above `max_per_page`, it throws.
     |
     */
 

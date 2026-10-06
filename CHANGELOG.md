@@ -30,6 +30,11 @@ All notable changes to `query-builder-for-laravel` are documented in this file. 
   separate copy (same allow-list, already applied) instead of the same object, `getQuery()` and
   `toBase()` return the base query builder (reading `->wheres` used to throw), and `clone $builder`
   no longer shares its constraints with the original.
+- A host config whose `pagination` block sets `max_per_page` below 20 but no `default_per_page`
+  (a published block replaces the package's whole block) no longer throws
+  `InvalidConfigurationException` on every request without `per_page` and in `artisan about`: an
+  unset default is now 20 or `max_per_page`, whichever is lower. An explicit default above the
+  max still throws.
 
 ## 1.0.1 - 2026-10-04
 
