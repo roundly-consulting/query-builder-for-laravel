@@ -11,6 +11,14 @@ All notable changes to `query-builder-for-laravel` are documented in this file. 
 - `AllowedFilter::operator($name, FilterOperator::NotEqual)` with a comma list now means "none of
   these" (`not in`); it used to OR the `!=` clauses and match every row. It stays plain SQL, so
   rows where the column is NULL are not included (the client-chosen `not:` still includes them).
+- Empty filter values are now "no value" in `partial`, `beginsWith`, `endsWith`, `exact`,
+  `operator` and `operators`: an empty element (`a,,b`, a trailing comma) is dropped, and a filter
+  left with nothing (`filter[title]=`, `filter[status]=,`, `contains:`) adds no constraint. Before,
+  a stray comma turned a search into `like '%%'` (every row), an empty `exact` matched no rows,
+  and an empty partial value hid rows whose column is NULL.
+- An empty value on a typed filter (`AllowedFilter::boolean()`, or `operators()` with a `Uuid`,
+  `Id` or `Boolean` shape) now adds no constraint instead of matching no rows, the same as
+  `nullable()`. A value that does not fit the column (`filter[active]=maybe`) still matches nothing.
 
 ## 1.0.1 - 2026-10-04
 

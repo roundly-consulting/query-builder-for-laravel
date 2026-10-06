@@ -93,6 +93,7 @@ final readonly class RequestedOperatorFilter implements Filter
         // reading and the one the UI offers.
         $values = is_array($value) ? $value : [$value];
         $first = $values[0] ?? null;
+        $operator = $this->default;
 
         // Only a STRING can carry an operator prefix. The request only ever produces
         // strings, but a filter is also called directly (a custom filter delegating, a
@@ -102,21 +103,26 @@ final readonly class RequestedOperatorFilter implements Filter
         // carries no operator and is forwarded as received — but it is still
         // SHAPE-CHECKED, because a boolean on a uuid or bigint column is the same 500 the
         // shape exists to prevent, reached through a door the string path does not use.
-        if (! is_string($first)) {
-            $this->compare($query, $this->default, $this->usable($value), $property);
+        if (is_string($first)) {
+            $parsed = RequestedOperator::split($first, $this->allowed);
+            $values[0] = $parsed->value;
+            $operator = $parsed->operatorOr($this->default);
+        }
 
+        // An empty element is no value (`a,,b` is two values; `,`, `not:` and an empty
+        // parameter are none at all), and a filter with no value adds no constraint —
+        // whatever its shape. That is not "nothing survived the shape check" (see
+        // compare()): only a value that WAS given can fail to fit the column.
+        $present = array_values(array_filter(
+            $values,
+            static fn (mixed $item): bool => $item !== null && $item !== '',
+        ));
+
+        if ($present === []) {
             return;
         }
 
-        $parsed = RequestedOperator::split($first, $this->allowed);
-        $values[0] = $parsed->value;
-
-        $this->compare(
-            $query,
-            $parsed->operatorOr($this->default),
-            $this->usable(is_array($value) ? $values : $parsed->value),
-            $property,
-        );
+        $this->compare($query, $operator, $this->usable(is_array($value) ? $present : $present[0]), $property);
     }
 
     /**
@@ -143,7 +149,8 @@ final readonly class RequestedOperatorFilter implements Filter
     }
 
     /**
-     * The value narrowed to what the column can hold, or `null` when nothing survives.
+     * The (non-empty) value narrowed to what the column can hold, or `null` when nothing
+     * survives.
      *
      * A no-op for the default {@see FilterValueShape::Text}, which is every filter that
      * did not ask for a shape — so this cannot change how an existing filter behaves.

@@ -38,11 +38,22 @@ final readonly class PartialFilter implements Filter
      * default true (a `%value%` "contains"); anchoring one side yields
      * begins-/ends-with. An array value produces a grouped OR of matches.
      *
+     * An empty element is no value and is dropped — a `like '%%'` would match every
+     * non-null row, swallowing the real needle beside it and hiding the NULL rows — and
+     * a filter left with nothing adds no constraint.
+     *
      * @param  Builder<Model>  $query
      */
     public function apply(Builder $query, mixed $value, string $property): void
     {
-        $values = is_array($value) ? $value : [$value];
+        $values = array_values(array_filter(
+            is_array($value) ? $value : [$value],
+            static fn (mixed $item): bool => $item !== null && $item !== '',
+        ));
+
+        if ($values === []) {
+            return;
+        }
 
         $prefix = $this->leadingWildcard ? '%' : '';
         $suffix = $this->trailingWildcard ? '%' : '';

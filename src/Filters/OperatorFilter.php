@@ -20,6 +20,9 @@ use RoundlyConsulting\QueryBuilder\Enums\FilterOperator;
  * so the list reads as "none of these" — `whereNotIn`. It stays plain SQL, so a
  * NULL column matches neither form; {@see NotEqualFilter} is the NULL-inclusive
  * negation behind the client-chosen `not:`.
+ *
+ * An empty element is no value and is dropped; a filter left with nothing adds no
+ * constraint, rather than ORing in a comparison against `''`.
  */
 final readonly class OperatorFilter implements Filter
 {
@@ -32,15 +35,24 @@ final readonly class OperatorFilter implements Filter
      */
     public function apply(Builder $query, mixed $value, string $property): void
     {
+        $values = array_values(array_filter(
+            is_array($value) ? $value : [$value],
+            static fn (mixed $item): bool => $item !== null && $item !== '',
+        ));
+
+        if ($values === []) {
+            return;
+        }
+
         if (is_array($value)) {
             if ($this->operator === FilterOperator::NotEqual) {
-                $query->whereNotIn($property, $value);
+                $query->whereNotIn($property, $values);
 
                 return;
             }
 
-            $query->where(function (Builder $query) use ($value, $property): void {
-                foreach ($value as $item) {
+            $query->where(function (Builder $query) use ($values, $property): void {
+                foreach ($values as $item) {
                     $query->orWhere($property, $this->operator->value, $item);
                 }
             });
