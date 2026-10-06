@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Query\Builder as BaseQueryBuilder;
 use Illuminate\Http\Request;
 use RoundlyConsulting\QueryBuilder\AllowedFilter;
 use RoundlyConsulting\QueryBuilder\AllowedSort;
@@ -59,6 +60,34 @@ it('returns itself when a forwarded call returns a builder', function (): void {
     $builder = qb('/')->where('active', true);
 
     expect($builder)->toBeInstanceOf(QueryBuilder::class);
+});
+
+it('hands back a copy for a builder that is not its own subject, and clones deeply', function (): void {
+    seedPosts();
+
+    $builder = qb('/?filter[status]=published')->allowedFilters('status');
+
+    // `clone()` is a NEW builder carrying the applied filter; its extra where stays its own.
+    $copy = $builder->clone();
+    $copy->where('title', 'Alpha');
+
+    // `getQuery()` / `toBase()` are the base query builder, never the wrapper. `toBase()`
+    // applies the global scopes, so it also carries the soft-delete constraint.
+    $base = $builder->getQuery();
+    $scoped = $builder->toBase();
+
+    // `clone $builder` is a separate builder too, not a second handle on the same one.
+    $cloned = clone $builder;
+    $cloned->where('title', 'Gamma');
+
+    expect($copy)->toBeInstanceOf(QueryBuilder::class)->not->toBe($builder)
+        ->and($copy->pluck('title')->all())->toBe(['Alpha'])
+        ->and($base)->toBeInstanceOf(BaseQueryBuilder::class)
+        ->and($base->wheres)->toHaveCount(1)
+        ->and($scoped)->toBeInstanceOf(BaseQueryBuilder::class)
+        ->and($scoped->wheres)->toHaveCount(2)
+        ->and($cloned->pluck('title')->all())->toBe(['Gamma'])
+        ->and($builder->pluck('title')->sort()->values()->all())->toBe(['Alpha', 'Gamma']);
 });
 
 it('accepts a prepared builder and preserves its constraints', function (): void {

@@ -19,6 +19,10 @@ All notable changes to `query-builder-for-laravel` are documented in this file. 
 - An empty value on a typed filter (`AllowedFilter::boolean()`, or `operators()` with a `Uuid`,
   `Id` or `Boolean` shape) now adds no constraint instead of matching no rows, the same as
   `nullable()`. A value that does not fit the column (`filter[active]=maybe`) still matches nothing.
+- `QueryBuilder` no longer hands itself back for every builder-like result: `clone()` returns a
+  separate copy (same allow-list, already applied) instead of the same object, `getQuery()` and
+  `toBase()` return the base query builder (reading `->wheres` used to throw), and `clone $builder`
+  no longer shares its constraints with the original.
 
 ## 1.0.1 - 2026-10-04
 

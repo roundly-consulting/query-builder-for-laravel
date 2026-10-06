@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\QueryBuilder;
 
-use Illuminate\Contracts\Database\Query\Builder as BuilderContract;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -23,6 +22,12 @@ use RoundlyConsulting\QueryBuilder\Support\QueryBuilderConfig;
  * (`where()`, `with()`, `get()`, …), because a forwarded call may be the one that runs the
  * query. `allowedFilters()`, `allowedSorts()` and `defaultSort()` after that point throw
  * {@see AllowListAlreadyApplied} rather than being silently ignored.
+ *
+ * A forwarded call that returns the wrapped builder itself (`where()`, `with()`, …) returns
+ * this wrapper, so chains keep their allow-list. One that returns ANOTHER Eloquent builder
+ * (`clone()`) returns a new wrapper around it, carrying the same allow-list and applied
+ * state; anything else (`getQuery()`, `toBase()`, a relation, a result) comes back as it is.
+ * `clone $builder` clones the wrapped builder too, so the copies never share constraints.
  *
  * @mixin EloquentBuilder<Model>
  */
@@ -124,7 +129,37 @@ final class QueryBuilder
 
         $result = $this->subject->{$name}(...$arguments);
 
-        return $result instanceof BuilderContract ? $this : $result;
+        if ($result === $this->subject) {
+            return $this;
+        }
+
+        return $result instanceof EloquentBuilder ? $this->wrapping($result) : $result;
+    }
+
+    /**
+     * A clone owns its own builder: sharing the wrapped one would let a constraint added to
+     * either copy leak into the other.
+     */
+    public function __clone()
+    {
+        $this->subject = clone $this->subject;
+    }
+
+    /**
+     * This wrapper's allow-list and applied state around another Eloquent builder — the one
+     * a forwarded call such as `clone()` handed back.
+     *
+     * @param  EloquentBuilder<Model>  $subject
+     */
+    private function wrapping(EloquentBuilder $subject): self
+    {
+        $copy = new self($subject, $this->request);
+        $copy->allowedFilters = $this->allowedFilters;
+        $copy->allowedSorts = $this->allowedSorts;
+        $copy->defaultSort = $this->defaultSort;
+        $copy->appliedBy = $this->appliedBy;
+
+        return $copy;
     }
 
     /**
