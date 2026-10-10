@@ -130,3 +130,15 @@ it('answers a value of the wrong shape with an empty result rather than a driver
 
     expect($result->pluck('title')->all())->toBe([]);
 });
+
+it('builds a search filter across several columns', function (): void {
+    Post::create(['title' => 'Gamma', 'summary' => 'mentions alpha']);
+
+    $filter = AllowedFilter::search('q', ['title', 'summary']);
+
+    $result = builderFor('/?filter[q]=ALPH')->allowedFilters($filter)->get();
+
+    expect($filter->name)->toBe('q')
+        ->and($filter->internalName)->toBe('q')
+        ->and($result->pluck('title')->sort()->values()->all())->toBe(['Alpha', 'Gamma']);
+});

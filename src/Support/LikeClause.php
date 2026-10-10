@@ -65,7 +65,7 @@ final class LikeClause
      *
      * @param  Builder<Model>  $query
      */
-    private static function driver(Builder $query): ?DatabaseDriver
+    public static function driver(Builder $query): ?DatabaseDriver
     {
         return DatabaseDriver::tryFrom($query->getModel()->getConnection()->getDriverName());
     }

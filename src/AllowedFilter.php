@@ -11,6 +11,7 @@ use RoundlyConsulting\QueryBuilder\Contracts\Filter;
 use RoundlyConsulting\QueryBuilder\Enums\FilterOperator;
 use RoundlyConsulting\QueryBuilder\Enums\FilterValueShape;
 use RoundlyConsulting\QueryBuilder\Enums\RequestedOperator;
+use RoundlyConsulting\QueryBuilder\Exceptions\InvalidFilterDeclaration;
 use RoundlyConsulting\QueryBuilder\Filters\CallbackFilter;
 use RoundlyConsulting\QueryBuilder\Filters\ExactFilter;
 use RoundlyConsulting\QueryBuilder\Filters\JsonContainsOperatorFilter;
@@ -20,6 +21,7 @@ use RoundlyConsulting\QueryBuilder\Filters\PartialFilter;
 use RoundlyConsulting\QueryBuilder\Filters\RelationOperatorFilter;
 use RoundlyConsulting\QueryBuilder\Filters\RequestedOperatorFilter;
 use RoundlyConsulting\QueryBuilder\Filters\ScopeFilter;
+use RoundlyConsulting\QueryBuilder\Filters\SearchFilter;
 use RoundlyConsulting\QueryBuilder\Filters\TrashedFilter;
 use RoundlyConsulting\QueryBuilder\Support\FilterSentinel;
 
@@ -80,6 +82,30 @@ final class AllowedFilter
     public static function endsWith(string $name, ?string $internalName = null): self
     {
         return new self($name, $internalName ?? $name, new PartialFilter(trailingWildcard: false));
+    }
+
+    /**
+     * One search box across several columns: `filter[<name>]=ann` matches the rows where ANY
+     * of `$columns` contains `ann` (escaped; case folding as {@see PartialFilter}'s).
+     *
+     * The value is ONE phrase: a comma is part of the text (`Smith, John` is searched as
+     * typed), unlike a {@see self::partial()} list, which is an OR of values. It is trimmed,
+     * and an empty phrase adds no constraint. Columns are bare or table-qualified (after a
+     * join); there is no relation search.
+     *
+     * A column is never lowercased, and cast only when it is listed in `$asText`, so a
+     * trigram index on it stays usable. List there every column that is not text (json/jsonb,
+     * uuid, integer, inet, enum): Postgres has no `ILIKE` for them, and MySQL compares JSON as
+     * binary. See {@see SearchFilter}.
+     *
+     * @param  list<string>  $columns
+     * @param  list<string>  $asText  those of `$columns` to compare as text
+     *
+     * @throws InvalidFilterDeclaration
+     */
+    public static function search(string $name, array $columns, array $asText = []): self
+    {
+        return new self($name, $name, new SearchFilter($columns, $asText));
     }
 
     /**

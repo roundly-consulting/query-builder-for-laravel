@@ -6,6 +6,20 @@ All notable changes to `query-builder-for-laravel` are documented in this file. 
 
 ## Unreleased
 
+### Added
+
+- `AllowedFilter::search($name, $columns, $asText = [])` and `Filters\SearchFilter`: one search box
+  across several columns. A row matches when any column contains the phrase, as one grouped `OR`
+  ANDed with the other filters. The value is one phrase, so a comma is part of the text
+  (`Smith, John` is searched as typed, unlike a `partial()` list). It is trimmed, an empty phrase
+  adds no constraint, and `%`, `_` and `\` are literal on every engine. Columns are bare or
+  table-qualified and are never lowercased, so a trigram index stays usable; list non-text columns
+  (json/jsonb, uuid, integer, enum) in `asText` to compare them as text (`::text` on PostgreSQL,
+  `cast(… as char)` on MySQL/MariaDB).
+- `Exceptions\InvalidFilterDeclaration`, thrown when a search filter is declared with no columns, a
+  column that is not a plain name (`tags::text`, `lower(name)`), or an `asText` column it does not
+  search.
+
 ### Fixed
 
 - `FilterValueShape::Id` no longer accepts a negative id behind whitespace (`" -5"`): the sign is
