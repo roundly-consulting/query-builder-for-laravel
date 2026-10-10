@@ -6,6 +6,8 @@ All notable changes to `query-builder-for-laravel` are documented in this file. 
 
 ## Unreleased
 
+## 1.2.0 - 2026-10-10
+
 ### Added
 
 - `AllowedFilter::search($name, $columns, $asText = [])` and `Filters\SearchFilter`: one search box
