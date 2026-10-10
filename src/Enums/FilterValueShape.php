@@ -63,8 +63,19 @@ enum FilterValueShape: string
             // authenticated endpoint. `FILTER_VALIDATE_INT` caps at `PHP_INT_MAX`, which is
             // precisely a bigint's maximum; a narrower column (`integer`, `smallint`) is
             // bounded by its own validation rule at the endpoint, where its width is known.
-            self::Id => filter_var($value, FILTER_VALIDATE_INT) !== false && ! str_starts_with($value, '-'),
+            self::Id => self::isNonNegativeInteger($value),
         };
+    }
+
+    /**
+     * The sign is read off the PARSED number, never the raw string: `FILTER_VALIDATE_INT`
+     * trims surrounding whitespace first, so a `-` check on the raw text let `' -5'` through.
+     */
+    private static function isNonNegativeInteger(string $value): bool
+    {
+        $int = filter_var($value, FILTER_VALIDATE_INT);
+
+        return $int !== false && $int >= 0;
     }
 
     /**

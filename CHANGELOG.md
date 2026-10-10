@@ -6,6 +6,12 @@ All notable changes to `query-builder-for-laravel` are documented in this file. 
 
 ## Unreleased
 
+### Fixed
+
+- `FilterValueShape::Id` no longer accepts a negative id behind whitespace (`" -5"`): the sign is
+  now read from the parsed number rather than the raw text. Such a value matches no row, as `-5`
+  already did. `-0` now reads as `0`, the same as `+0`.
+
 ## 1.1.0 - 2026-10-06
 
 ### Added

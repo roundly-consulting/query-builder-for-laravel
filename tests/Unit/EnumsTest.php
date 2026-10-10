@@ -101,6 +101,28 @@ it('rejects an id too large for the column it guards', function (): void {
         ->and(FilterValueShape::Id->matches('garbage'))->toBeFalse();
 });
 
+it('rejects a negative id however it is padded', function (string $value): void {
+    // `FILTER_VALIDATE_INT` trims surrounding whitespace before it parses, so a sign check
+    // on the raw string misses a minus behind a space or a tab. The parsed number decides.
+    expect(FilterValueShape::Id->matches($value))->toBeFalse();
+})->with([
+    'space' => ' -5',
+    'tab' => "\t-1",
+    'newline' => "\n-5",
+    'trailing space' => '-5 ',
+]);
+
+it('reads an id the way FILTER_VALIDATE_INT does', function (): void {
+    // Surrounding whitespace and a plus sign are part of PHP's integer syntax, and `-0` is
+    // zero: all three parse to a non-negative id. A leading zero does not parse at all.
+    expect(FilterValueShape::Id->matches(' 5'))->toBeTrue()
+        ->and(FilterValueShape::Id->matches('+5'))->toBeTrue()
+        ->and(FilterValueShape::Id->matches('0'))->toBeTrue()
+        ->and(FilterValueShape::Id->matches('-0'))->toBeTrue()
+        ->and(FilterValueShape::Id->matches('05'))->toBeFalse()
+        ->and(FilterValueShape::Id->matches(''))->toBeFalse();
+});
+
 it('accepts only the boolean spellings for a boolean column', function (): void {
     expect(FilterValueShape::Boolean->matches('true'))->toBeTrue()
         ->and(FilterValueShape::Boolean->matches('FALSE'))->toBeTrue()
