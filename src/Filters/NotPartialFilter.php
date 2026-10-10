@@ -6,10 +6,9 @@ namespace RoundlyConsulting\QueryBuilder\Filters;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use RoundlyConsulting\PackageToolkit\Enums\DatabaseDriver;
 use RoundlyConsulting\PackageToolkit\Support\LikeEscaper;
 use RoundlyConsulting\QueryBuilder\Contracts\Filter;
-use RoundlyConsulting\QueryBuilder\Support\RawExpression;
+use RoundlyConsulting\QueryBuilder\Support\LikeClause;
 
 /**
  * The negation of {@see PartialFilter}: rows whose column does NOT contain the needle.
@@ -44,33 +43,20 @@ final readonly class NotPartialFilter implements Filter
             return;
         }
 
-        $operator = $this->isPgsql($query) ? 'not ilike' : 'not like';
-        $column = $query->getQuery()->getGrammar()->wrap($property);
-
         // Raw so the explicit `ESCAPE '\'` clause is attached; the column is a
         // grammar-wrapped developer-supplied identifier, the needle and escape char are
         // bound. No request input reaches an identifier position.
-        $condition = new RawExpression("{$column} {$operator} ? escape ?");
+        $condition = LikeClause::condition($query, $query->getQuery()->getGrammar()->wrap($property), negated: true);
 
         $query->where(function (Builder $query) use ($values, $condition, $property): void {
             foreach ($values as $item) {
                 $needle = '%'.LikeEscaper::escape((string) $item).'%';
 
                 $query->where(function (Builder $query) use ($condition, $needle, $property): void {
-                    $query->whereRaw($condition, [$needle, '\\'])
+                    $query->whereRaw($condition, [$needle, LikeClause::ESCAPE])
                         ->orWhereNull($property);
                 });
             }
         });
-    }
-
-    /**
-     * @param  Builder<Model>  $query
-     */
-    private function isPgsql(Builder $query): bool
-    {
-        $driver = DatabaseDriver::tryFrom($query->getModel()->getConnection()->getDriverName());
-
-        return $driver?->isPgsql() ?? false;
     }
 }

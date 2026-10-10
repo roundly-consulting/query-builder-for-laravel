@@ -6,10 +6,9 @@ namespace RoundlyConsulting\QueryBuilder\Filters;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use RoundlyConsulting\PackageToolkit\Enums\DatabaseDriver;
 use RoundlyConsulting\PackageToolkit\Support\LikeEscaper;
 use RoundlyConsulting\QueryBuilder\Contracts\Filter;
-use RoundlyConsulting\QueryBuilder\Support\RawExpression;
+use RoundlyConsulting\QueryBuilder\Support\LikeClause;
 
 final readonly class PartialFilter implements Filter
 {
@@ -58,40 +57,18 @@ final readonly class PartialFilter implements Filter
         $prefix = $this->leadingWildcard ? '%' : '';
         $suffix = $this->trailingWildcard ? '%' : '';
 
-        $operator = $this->isPgsql($query) ? 'ilike' : 'like';
-        $column = $query->getQuery()->getGrammar()->wrap($property);
-
         // Raw so we can attach an explicit `ESCAPE '\'` clause the query builder
         // never emits. The column is a grammar-wrapped, developer-supplied
-        // identifier (never request input) wrapped in an Expression; the needle
-        // and escape char are bound — no user input reaches an identifier slot.
-        $condition = new RawExpression("{$column} {$operator} ? escape ?");
+        // identifier (never request input); the needle and escape char are
+        // bound — no user input reaches an identifier slot.
+        $condition = LikeClause::condition($query, $query->getQuery()->getGrammar()->wrap($property));
 
         $query->where(function (Builder $query) use ($values, $prefix, $suffix, $condition): void {
             foreach ($values as $item) {
                 $needle = $prefix.LikeEscaper::escape((string) $item).$suffix;
 
-                $query->whereRaw($condition, [$needle, '\\'], 'or');
+                $query->whereRaw($condition, [$needle, LikeClause::ESCAPE], 'or');
             }
         });
-    }
-
-    /**
-     * Whether the query's connection speaks Postgres (the only driver with a
-     * native case-insensitive `ILIKE`).
-     *
-     * `DatabaseDriver::tryFrom()`, not `::current()`: the toolkit's enum models
-     * the four drivers a package may special-case and `current()` *throws* for
-     * anything else. A filter runs inside a request, so an unmodelled driver
-     * (`sqlsrv`, a host's custom connection) must degrade to the portable
-     * `like` — as it always has — never turn a working list endpoint into a 500.
-     *
-     * @param  Builder<Model>  $query
-     */
-    private function isPgsql(Builder $query): bool
-    {
-        $driver = DatabaseDriver::tryFrom($query->getModel()->getConnection()->getDriverName());
-
-        return $driver?->isPgsql() ?? false;
     }
 }

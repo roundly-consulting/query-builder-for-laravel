@@ -15,8 +15,9 @@ use RoundlyConsulting\QueryBuilder\Tests\Support\Models\Post;
  * so no server is needed to pin which operator each driver compiles to.
  *
  * `NotPartialFilter` is pinned alongside `PartialFilter` rather than trusted to
- * mirror it: it is a second, independent `isPgsql()` branch and a second
- * `escape ?` line, and "it was copied from the one next door" is not a test.
+ * mirror it: both now compile through the shared `LikeClause`, and a shared
+ * helper is exactly where a negation flag or a driver branch breaks for one
+ * caller and not the other — "they use the same helper" is not a test either.
  */
 function sqlOn(string $connection, Filter $filter): string
 {
