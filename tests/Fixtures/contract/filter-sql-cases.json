@@ -1,0 +1,1035 @@
+{
+    "$comment": [
+        "ONE URL, THE SAME ROWS, ON BOTH STACKS. Canonical in query-builder-for-laravel",
+        "(tests/Fixtures/contract/), copied byte-identical to query-builder-for-node",
+        "(tests/goldens/contract/); ./parity.sh cmp-checks the pair.",
+        "",
+        "Each stack creates `table` with `columns`, inserts `rows`, declares `filters` (Laravel:",
+        "AllowedFilter::operators(), or ::nullable() when `nullable`; Node: sqlFilters()) and",
+        "`sorts` with `default_sort`, then answers each case's `query` string against a REAL",
+        "Postgres (the pgsql leg on both sides). `ids` is the result in order: the requested",
+        "sorts (else the default), then `id` ascending as the tiebreak. `error` names the 400",
+        "(unknown_filter / unknown_sort) and `message` its exact text."
+    ],
+    "table": "parity_items",
+    "columns": [
+        {
+            "name": "id",
+            "type": "bigint",
+            "nullable": false
+        },
+        {
+            "name": "status",
+            "type": "string",
+            "nullable": false
+        },
+        {
+            "name": "title",
+            "type": "string",
+            "nullable": false
+        },
+        {
+            "name": "note",
+            "type": "string",
+            "nullable": true
+        },
+        {
+            "name": "views",
+            "type": "bigint",
+            "nullable": false
+        },
+        {
+            "name": "active",
+            "type": "boolean",
+            "nullable": false
+        },
+        {
+            "name": "ref",
+            "type": "uuid",
+            "nullable": true
+        },
+        {
+            "name": "owner_id",
+            "type": "bigint",
+            "nullable": true
+        }
+    ],
+    "rows": [
+        {
+            "id": 1,
+            "status": "open",
+            "title": "Alpha launch",
+            "note": "50% off",
+            "views": 0,
+            "active": true,
+            "ref": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+            "owner_id": 10
+        },
+        {
+            "id": 2,
+            "status": "closed",
+            "title": "beta_release",
+            "note": "5000 off",
+            "views": 5,
+            "active": false,
+            "ref": null,
+            "owner_id": null
+        },
+        {
+            "id": 3,
+            "status": "open",
+            "title": "Gamma ray",
+            "note": null,
+            "views": 10,
+            "active": true,
+            "ref": "b1ffcd88-8d1a-4ef8-bb6d-6bb9bd380a22",
+            "owner_id": 20
+        },
+        {
+            "id": 4,
+            "status": "draft",
+            "title": "betaXrelease",
+            "note": "a_b marker",
+            "views": 100,
+            "active": false,
+            "ref": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+            "owner_id": 10
+        },
+        {
+            "id": 5,
+            "status": "archived",
+            "title": "Delta \\ path",
+            "note": "aXb marker",
+            "views": 1000,
+            "active": true,
+            "ref": null,
+            "owner_id": 30
+        },
+        {
+            "id": 6,
+            "status": "closed",
+            "title": "Omega",
+            "note": "Draft notes",
+            "views": 10,
+            "active": false,
+            "ref": "b1ffcd88-8d1a-4ef8-bb6d-6bb9bd380a22",
+            "owner_id": null
+        },
+        {
+            "id": 7,
+            "status": "none",
+            "title": "Epsilon",
+            "note": "none",
+            "views": 7,
+            "active": true,
+            "ref": "c2aade77-7e2b-4ef8-bb6d-6bb9bd380a33",
+            "owner_id": 0
+        }
+    ],
+    "filters": {
+        "status": {
+            "column": "status",
+            "operators": [
+                "not"
+            ],
+            "shape": "text",
+            "nullable": false
+        },
+        "kind": {
+            "column": "status",
+            "operators": [],
+            "shape": "text",
+            "nullable": false
+        },
+        "title": {
+            "column": "title",
+            "operators": [
+                "contains",
+                "ncontains",
+                "starts"
+            ],
+            "shape": "text",
+            "nullable": false
+        },
+        "note": {
+            "column": "note",
+            "operators": [
+                "not",
+                "contains",
+                "ncontains"
+            ],
+            "shape": "text",
+            "nullable": false
+        },
+        "views": {
+            "column": "views",
+            "operators": [
+                "not",
+                "gt",
+                "gte",
+                "lt",
+                "lte"
+            ],
+            "shape": "id",
+            "nullable": false
+        },
+        "active": {
+            "column": "active",
+            "operators": [
+                "not"
+            ],
+            "shape": "boolean",
+            "nullable": false
+        },
+        "refid": {
+            "column": "ref",
+            "operators": [
+                "not"
+            ],
+            "shape": "uuid",
+            "nullable": false
+        },
+        "ref": {
+            "column": "ref",
+            "operators": [
+                "not"
+            ],
+            "shape": "uuid",
+            "nullable": true
+        },
+        "owner": {
+            "column": "owner_id",
+            "operators": [
+                "not"
+            ],
+            "shape": "id",
+            "nullable": true
+        }
+    },
+    "sorts": [
+        "status",
+        "views",
+        "id"
+    ],
+    "default_sort": "id",
+    "cases": [
+        {
+            "name": "a bare value is equality",
+            "query": "filter[status]=open",
+            "ids": [
+                1,
+                3
+            ]
+        },
+        {
+            "name": "a comma list is ORed",
+            "query": "filter[status]=open,closed",
+            "ids": [
+                1,
+                2,
+                3,
+                6
+            ]
+        },
+        {
+            "name": "not: excludes the value",
+            "query": "filter[status]=not:open",
+            "ids": [
+                2,
+                4,
+                5,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "not: of a list is neither",
+            "query": "filter[status]=not:open,closed",
+            "ids": [
+                4,
+                5,
+                7
+            ]
+        },
+        {
+            "name": "is: is always nameable",
+            "query": "filter[status]=is:draft",
+            "ids": [
+                4
+            ]
+        },
+        {
+            "name": "an operator the filter did not declare is part of the value",
+            "query": "filter[kind]=not:open",
+            "ids": []
+        },
+        {
+            "name": "a filter with no operators still names is:",
+            "query": "filter[kind]=is:open",
+            "ids": [
+                1,
+                3
+            ]
+        },
+        {
+            "name": "an unknown token is part of the value",
+            "query": "filter[status]=drop:x",
+            "ids": []
+        },
+        {
+            "name": "the none sentinel is a plain value on a filter that is not nullable",
+            "query": "filter[status]=none",
+            "ids": [
+                7
+            ]
+        },
+        {
+            "name": "a lone comma is no value and adds no constraint",
+            "query": "filter[status]=,",
+            "ids": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "an operator with no value adds no constraint",
+            "query": "filter[status]=not:",
+            "ids": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "an empty value adds no constraint",
+            "query": "filter[status]=",
+            "ids": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "a repeated key keeps its last value",
+            "query": "filter[status]=open&filter[status]=draft",
+            "ids": [
+                4
+            ]
+        },
+        {
+            "name": "the PHP array spelling is one comma list",
+            "query": "filter[status][]=open&filter[status][]=draft",
+            "ids": [
+                1,
+                3,
+                4
+            ]
+        },
+        {
+            "name": "not: includes the rows where the column is NULL",
+            "query": "filter[note]=not:50%25%20off",
+            "ids": [
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "separate keys are ANDed",
+            "query": "filter[status]=open&filter[active]=true&filter[views]=gt:5",
+            "ids": [
+                3
+            ]
+        },
+        {
+            "name": "contains: matches case-insensitively",
+            "query": "filter[title]=contains:ALPHA",
+            "ids": [
+                1
+            ]
+        },
+        {
+            "name": "contains: matches anywhere",
+            "query": "filter[title]=contains:beta",
+            "ids": [
+                2,
+                4
+            ]
+        },
+        {
+            "name": "contains: keeps an underscore literal",
+            "query": "filter[title]=contains:a_r",
+            "ids": [
+                2
+            ]
+        },
+        {
+            "name": "contains: keeps a percent sign literal",
+            "query": "filter[note]=contains:50%25",
+            "ids": [
+                1
+            ]
+        },
+        {
+            "name": "contains: keeps a backslash literal",
+            "query": "filter[title]=contains:%5C",
+            "ids": [
+                5
+            ]
+        },
+        {
+            "name": "contains: of a list is ORed",
+            "query": "filter[title]=contains:omega,gamma",
+            "ids": [
+                3,
+                6
+            ]
+        },
+        {
+            "name": "contains: with no value adds no constraint",
+            "query": "filter[title]=contains:",
+            "ids": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "starts: is anchored at the start",
+            "query": "filter[title]=starts:g",
+            "ids": [
+                3
+            ]
+        },
+        {
+            "name": "starts: does not match in the middle",
+            "query": "filter[title]=starts:ray",
+            "ids": []
+        },
+        {
+            "name": "starts: keeps an underscore literal",
+            "query": "filter[title]=starts:beta_",
+            "ids": [
+                2
+            ]
+        },
+        {
+            "name": "ncontains: includes the rows where the column is NULL",
+            "query": "filter[note]=ncontains:marker",
+            "ids": [
+                1,
+                2,
+                3,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "ncontains: of a list contains none of them",
+            "query": "filter[note]=ncontains:off,draft",
+            "ids": [
+                3,
+                4,
+                5,
+                7
+            ]
+        },
+        {
+            "name": "gt:",
+            "query": "filter[views]=gt:10",
+            "ids": [
+                4,
+                5
+            ]
+        },
+        {
+            "name": "gte:",
+            "query": "filter[views]=gte:10",
+            "ids": [
+                3,
+                4,
+                5,
+                6
+            ]
+        },
+        {
+            "name": "lt:",
+            "query": "filter[views]=lt:5",
+            "ids": [
+                1
+            ]
+        },
+        {
+            "name": "lte:",
+            "query": "filter[views]=lte:5",
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "name": "a comparison of a list is ORed",
+            "query": "filter[views]=gt:1000,5",
+            "ids": [
+                3,
+                4,
+                5,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "gte: -0 reads as 0",
+            "query": "filter[views]=gte:-0",
+            "ids": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "an id of -0 reads as 0",
+            "query": "filter[views]=-0",
+            "ids": [
+                1
+            ]
+        },
+        {
+            "name": "an id with a plus sign",
+            "query": "filter[views]=%2B5",
+            "ids": [
+                2
+            ]
+        },
+        {
+            "name": "an id with surrounding spaces",
+            "query": "filter[views]=%205%20",
+            "ids": [
+                2
+            ]
+        },
+        {
+            "name": "an id with a leading tab",
+            "query": "filter[views]=%095",
+            "ids": [
+                2
+            ]
+        },
+        {
+            "name": "an id with a leading zero matches nothing",
+            "query": "filter[views]=05",
+            "ids": []
+        },
+        {
+            "name": "a non-numeric id matches nothing",
+            "query": "filter[views]=abc",
+            "ids": []
+        },
+        {
+            "name": "a negative id matches nothing",
+            "query": "filter[views]=-5",
+            "ids": []
+        },
+        {
+            "name": "an id past the bigint maximum matches nothing instead of failing",
+            "query": "filter[views]=9223372036854775808",
+            "ids": []
+        },
+        {
+            "name": "the bigint maximum is an id",
+            "query": "filter[views]=9223372036854775807",
+            "ids": []
+        },
+        {
+            "name": "exponent notation is not an id",
+            "query": "filter[views]=1e3",
+            "ids": []
+        },
+        {
+            "name": "a comparison with nothing usable matches nothing",
+            "query": "filter[views]=gt:abc",
+            "ids": []
+        },
+        {
+            "name": "a negation with nothing usable excludes nothing",
+            "query": "filter[views]=not:abc",
+            "ids": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "unusable values are dropped from a negation",
+            "query": "filter[views]=not:10,abc",
+            "ids": [
+                1,
+                2,
+                4,
+                5,
+                7
+            ]
+        },
+        {
+            "name": "a boolean true",
+            "query": "filter[active]=true",
+            "ids": [
+                1,
+                3,
+                5,
+                7
+            ]
+        },
+        {
+            "name": "a boolean in any letter case",
+            "query": "filter[active]=FALSE",
+            "ids": [
+                2,
+                4,
+                6
+            ]
+        },
+        {
+            "name": "a boolean 1",
+            "query": "filter[active]=1",
+            "ids": [
+                1,
+                3,
+                5,
+                7
+            ]
+        },
+        {
+            "name": "a boolean 0",
+            "query": "filter[active]=0",
+            "ids": [
+                2,
+                4,
+                6
+            ]
+        },
+        {
+            "name": "not: on a boolean",
+            "query": "filter[active]=not:true",
+            "ids": [
+                2,
+                4,
+                6
+            ]
+        },
+        {
+            "name": "a non-boolean matches nothing",
+            "query": "filter[active]=yes",
+            "ids": []
+        },
+        {
+            "name": "a negated non-boolean excludes nothing",
+            "query": "filter[active]=not:yes",
+            "ids": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "both booleans match every row",
+            "query": "filter[active]=true,false",
+            "ids": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "a uuid",
+            "query": "filter[refid]=a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+            "ids": [
+                1,
+                4
+            ]
+        },
+        {
+            "name": "a uuid in upper case",
+            "query": "filter[refid]=A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11",
+            "ids": [
+                1,
+                4
+            ]
+        },
+        {
+            "name": "a malformed uuid matches nothing",
+            "query": "filter[refid]=garbage",
+            "ids": []
+        },
+        {
+            "name": "a braced uuid is not a uuid",
+            "query": "filter[refid]=%7Ba0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11%7D",
+            "ids": []
+        },
+        {
+            "name": "a negated malformed uuid excludes nothing",
+            "query": "filter[refid]=not:garbage",
+            "ids": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "not: on a uuid includes the NULL rows",
+            "query": "filter[refid]=not:a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+            "ids": [
+                2,
+                3,
+                5,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "malformed values are dropped from a list",
+            "query": "filter[refid]=garbage,b1ffcd88-8d1a-4ef8-bb6d-6bb9bd380a22",
+            "ids": [
+                3,
+                6
+            ]
+        },
+        {
+            "name": "none is not a uuid on a filter that is not nullable",
+            "query": "filter[refid]=none",
+            "ids": []
+        },
+        {
+            "name": "none is the unset rows",
+            "query": "filter[ref]=none",
+            "ids": [
+                2,
+                5
+            ]
+        },
+        {
+            "name": "not:none is the rows with a value",
+            "query": "filter[ref]=not:none",
+            "ids": [
+                1,
+                3,
+                4,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "none in a list adds the unset rows",
+            "query": "filter[ref]=none,a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+            "ids": [
+                1,
+                2,
+                4,
+                5
+            ]
+        },
+        {
+            "name": "not:none in a list keeps rows with another value",
+            "query": "filter[ref]=not:none,a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+            "ids": [
+                3,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "not: on a nullable column includes the unset rows",
+            "query": "filter[ref]=not:a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+            "ids": [
+                2,
+                3,
+                5,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "a malformed value on a nullable column matches nothing",
+            "query": "filter[ref]=garbage",
+            "ids": []
+        },
+        {
+            "name": "a malformed value beside none still finds the unset rows",
+            "query": "filter[ref]=none,garbage",
+            "ids": [
+                2,
+                5
+            ]
+        },
+        {
+            "name": "a negated malformed value on a nullable column excludes nothing",
+            "query": "filter[ref]=not:garbage",
+            "ids": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "not:none beside a malformed value is the rows with a value",
+            "query": "filter[ref]=not:none,garbage",
+            "ids": [
+                1,
+                3,
+                4,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "a nullable id",
+            "query": "filter[owner]=10",
+            "ids": [
+                1,
+                4
+            ]
+        },
+        {
+            "name": "a nullable id of -0 reads as 0",
+            "query": "filter[owner]=-0",
+            "ids": [
+                7
+            ]
+        },
+        {
+            "name": "not: -0 on a nullable id",
+            "query": "filter[owner]=not:-0",
+            "ids": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+            ]
+        },
+        {
+            "name": "none on a nullable id",
+            "query": "filter[owner]=none",
+            "ids": [
+                2,
+                6
+            ]
+        },
+        {
+            "name": "not: on a nullable id includes the unset rows",
+            "query": "filter[owner]=not:10",
+            "ids": [
+                2,
+                3,
+                5,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "not:none on a nullable id",
+            "query": "filter[owner]=not:none",
+            "ids": [
+                1,
+                3,
+                4,
+                5,
+                7
+            ]
+        },
+        {
+            "name": "none and an id",
+            "query": "filter[owner]=none,30",
+            "ids": [
+                2,
+                5,
+                6
+            ]
+        },
+        {
+            "name": "a comparison token on a nullable filter is part of the value",
+            "query": "filter[owner]=gt:10",
+            "ids": []
+        },
+        {
+            "name": "no sort applies the default",
+            "query": "sort=",
+            "ids": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+            ]
+        },
+        {
+            "name": "a descending sort",
+            "query": "sort=-views",
+            "ids": [
+                5,
+                4,
+                3,
+                6,
+                7,
+                2,
+                1
+            ]
+        },
+        {
+            "name": "a multi-sort applies left to right",
+            "query": "sort=status,-views",
+            "ids": [
+                5,
+                6,
+                2,
+                4,
+                7,
+                3,
+                1
+            ]
+        },
+        {
+            "name": "an empty sort token is skipped",
+            "query": "sort=views,,-status",
+            "ids": [
+                1,
+                2,
+                7,
+                3,
+                6,
+                4,
+                5
+            ]
+        },
+        {
+            "name": "a repeated sort key keeps its first occurrence",
+            "query": "sort=-views,views",
+            "ids": [
+                5,
+                4,
+                3,
+                6,
+                7,
+                2,
+                1
+            ]
+        },
+        {
+            "name": "every leading dash is stripped",
+            "query": "sort=--views",
+            "ids": [
+                5,
+                4,
+                3,
+                6,
+                7,
+                2,
+                1
+            ]
+        },
+        {
+            "name": "a repeated sort parameter keeps its last value",
+            "query": "sort=status&sort=-id",
+            "ids": [
+                7,
+                6,
+                5,
+                4,
+                3,
+                2,
+                1
+            ]
+        },
+        {
+            "name": "a filter and a sort together",
+            "query": "filter[status]=open&sort=-views",
+            "ids": [
+                3,
+                1
+            ]
+        },
+        {
+            "name": "an unknown filter is rejected",
+            "query": "filter[nope]=x",
+            "error": "unknown_filter",
+            "message": "Requested filter(s) `nope` are not allowed. Allowed filter(s) are `status, kind, title, note, views, active, refid, ref, owner`."
+        },
+        {
+            "name": "an inherited object member is an unknown filter",
+            "query": "filter[constructor]=x",
+            "error": "unknown_filter",
+            "message": "Requested filter(s) `constructor` are not allowed. Allowed filter(s) are `status, kind, title, note, views, active, refid, ref, owner`."
+        },
+        {
+            "name": "every unknown filter is reported, in request order",
+            "query": "filter[status]=open&filter[nope]=1&filter[nada]=2",
+            "error": "unknown_filter",
+            "message": "Requested filter(s) `nope, nada` are not allowed. Allowed filter(s) are `status, kind, title, note, views, active, refid, ref, owner`."
+        },
+        {
+            "name": "an unknown filter is reported before an unknown sort",
+            "query": "filter[nope]=1&sort=title",
+            "error": "unknown_filter",
+            "message": "Requested filter(s) `nope` are not allowed. Allowed filter(s) are `status, kind, title, note, views, active, refid, ref, owner`."
+        },
+        {
+            "name": "an unknown sort is rejected",
+            "query": "sort=views,-title",
+            "error": "unknown_sort",
+            "message": "Requested sort(s) `title` are not allowed. Allowed sort(s) are `status, views, id`."
+        },
+        {
+            "name": "an inherited object member is an unknown sort",
+            "query": "sort=-__proto__",
+            "error": "unknown_sort",
+            "message": "Requested sort(s) `__proto__` are not allowed. Allowed sort(s) are `status, views, id`."
+        }
+    ]
+}

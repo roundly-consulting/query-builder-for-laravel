@@ -1,0 +1,308 @@
+{
+    "$comment": [
+        "THE SORT GRAMMAR, AS A TABLE. Canonical in query-builder-for-laravel",
+        "(tests/Fixtures/contract/), copied byte-identical to query-builder-for-node",
+        "(tests/goldens/contract/); ./parity.sh cmp-checks the pair.",
+        "",
+        "`raw` is the `sort` parameter, `offered` the endpoint's allow-listed sorts, `sorts` what",
+        "applies (Laravel: QueryBuilderRequest::sorts() + QueryBuilder::applySorts() in ignore",
+        "mode; Node: requestedSorts()), `unknown` the keys reject mode reports, in request order.",
+        "The cap is limits.max_sorts / SORTS_MAX, 5."
+    ],
+    "cases": [
+        {
+            "name": "a comma list, applied left to right; a leading dash is descending",
+            "raw": "-views,title",
+            "offered": [
+                "views",
+                "title"
+            ],
+            "sorts": [
+                {
+                    "key": "views",
+                    "desc": true
+                },
+                {
+                    "key": "title",
+                    "desc": false
+                }
+            ],
+            "unknown": []
+        },
+        {
+            "name": "no sort is no sort",
+            "raw": "",
+            "offered": [
+                "views"
+            ],
+            "sorts": [],
+            "unknown": []
+        },
+        {
+            "name": "an empty token is skipped",
+            "raw": "views,,-title,",
+            "offered": [
+                "views",
+                "title"
+            ],
+            "sorts": [
+                {
+                    "key": "views",
+                    "desc": false
+                },
+                {
+                    "key": "title",
+                    "desc": true
+                }
+            ],
+            "unknown": []
+        },
+        {
+            "name": "every leading dash is stripped and the token is still descending",
+            "raw": "--views",
+            "offered": [
+                "views"
+            ],
+            "sorts": [
+                {
+                    "key": "views",
+                    "desc": true
+                }
+            ],
+            "unknown": []
+        },
+        {
+            "name": "a repeated key keeps its first occurrence (descending)",
+            "raw": "-views,views",
+            "offered": [
+                "views"
+            ],
+            "sorts": [
+                {
+                    "key": "views",
+                    "desc": true
+                }
+            ],
+            "unknown": []
+        },
+        {
+            "name": "a repeated key keeps its first occurrence (ascending)",
+            "raw": "views,-views",
+            "offered": [
+                "views"
+            ],
+            "sorts": [
+                {
+                    "key": "views",
+                    "desc": false
+                }
+            ],
+            "unknown": []
+        },
+        {
+            "name": "at most five offered keys apply; the sixth is never read",
+            "raw": "a,b,c,d,e,f",
+            "offered": [
+                "a",
+                "b",
+                "c",
+                "d",
+                "e",
+                "f"
+            ],
+            "sorts": [
+                {
+                    "key": "a",
+                    "desc": false
+                },
+                {
+                    "key": "b",
+                    "desc": false
+                },
+                {
+                    "key": "c",
+                    "desc": false
+                },
+                {
+                    "key": "d",
+                    "desc": false
+                },
+                {
+                    "key": "e",
+                    "desc": false
+                }
+            ],
+            "unknown": []
+        },
+        {
+            "name": "an unknown key before the cap is reported and takes no place",
+            "raw": "bogus,a,b,c,d,e",
+            "offered": [
+                "a",
+                "b",
+                "c",
+                "d",
+                "e"
+            ],
+            "sorts": [
+                {
+                    "key": "a",
+                    "desc": false
+                },
+                {
+                    "key": "b",
+                    "desc": false
+                },
+                {
+                    "key": "c",
+                    "desc": false
+                },
+                {
+                    "key": "d",
+                    "desc": false
+                },
+                {
+                    "key": "e",
+                    "desc": false
+                }
+            ],
+            "unknown": [
+                "bogus"
+            ]
+        },
+        {
+            "name": "a token past the cap is never read, not even as unknown",
+            "raw": "a,b,c,d,e,bogus",
+            "offered": [
+                "a",
+                "b",
+                "c",
+                "d",
+                "e"
+            ],
+            "sorts": [
+                {
+                    "key": "a",
+                    "desc": false
+                },
+                {
+                    "key": "b",
+                    "desc": false
+                },
+                {
+                    "key": "c",
+                    "desc": false
+                },
+                {
+                    "key": "d",
+                    "desc": false
+                },
+                {
+                    "key": "e",
+                    "desc": false
+                }
+            ],
+            "unknown": []
+        },
+        {
+            "name": "unknown keys never use up the cap",
+            "raw": "z1,-z2,a",
+            "offered": [
+                "a"
+            ],
+            "sorts": [
+                {
+                    "key": "a",
+                    "desc": false
+                }
+            ],
+            "unknown": [
+                "z1",
+                "z2"
+            ]
+        },
+        {
+            "name": "nothing offered fills the cap, so every unknown key is reported",
+            "raw": "z1,z2,z3,z4,z5,z6",
+            "offered": [
+                "a"
+            ],
+            "sorts": [],
+            "unknown": [
+                "z1",
+                "z2",
+                "z3",
+                "z4",
+                "z5",
+                "z6"
+            ]
+        },
+        {
+            "name": "an inherited object member is an unknown key",
+            "raw": "-__proto__,constructor,toString",
+            "offered": [
+                "views"
+            ],
+            "sorts": [],
+            "unknown": [
+                "__proto__",
+                "constructor",
+                "toString"
+            ]
+        },
+        {
+            "name": "keys are case-sensitive",
+            "raw": "Views",
+            "offered": [
+                "views"
+            ],
+            "sorts": [],
+            "unknown": [
+                "Views"
+            ]
+        },
+        {
+            "name": "keys are not trimmed",
+            "raw": " views",
+            "offered": [
+                "views"
+            ],
+            "sorts": [],
+            "unknown": [
+                " views"
+            ]
+        },
+        {
+            "name": "a lone dash names the empty key",
+            "raw": "-",
+            "offered": [
+                "views"
+            ],
+            "sorts": [],
+            "unknown": [
+                ""
+            ]
+        },
+        {
+            "name": "a mixed list keeps the offered part in order",
+            "raw": "title,-bogus,views",
+            "offered": [
+                "views",
+                "title"
+            ],
+            "sorts": [
+                {
+                    "key": "title",
+                    "desc": false
+                },
+                {
+                    "key": "views",
+                    "desc": false
+                }
+            ],
+            "unknown": [
+                "bogus"
+            ]
+        }
+    ]
+}

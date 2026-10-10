@@ -28,3 +28,20 @@ function wrapped(string $column): string
 {
     return DB::connection()->getQueryGrammar()->wrap($column);
 }
+
+/**
+ * A canonical contract fixture from `tests/Fixtures/contract/`.
+ *
+ * These files are a contract shared with `query-builder-for-node`, which keeps byte-identical
+ * copies as its goldens (`./parity.sh` cmp-checks the pair) and runs its own half against
+ * them. Laravel is the reference: a case changes here first, then in the copy.
+ *
+ * @return array<string, mixed>
+ */
+function contract(string $name): array
+{
+    /** @var array<string, mixed> $data */
+    $data = json_decode((string) file_get_contents(__DIR__.'/Fixtures/contract/'.$name.'.json'), true, 512, JSON_THROW_ON_ERROR);
+
+    return $data;
+}

@@ -1,0 +1,431 @@
+{
+    "$comment": [
+        "FILTER VALUE SHAPES, AS A TABLE. Canonical in query-builder-for-laravel",
+        "(tests/Fixtures/contract/), copied byte-identical to query-builder-for-node",
+        "(tests/goldens/contract/); ./parity.sh cmp-checks the pair.",
+        "",
+        "Laravel's FilterValueShape::matches() and Node's matchesShape() must both answer",
+        "`matches` for every case. `cast` (boolean cases only) is the real boolean the value",
+        "binds as. `id` is FILTER_VALIDATE_INT with a non-negative parsed value: `-0` is 0."
+    ],
+    "cases": [
+        {
+            "shape": "text",
+            "value": "",
+            "matches": true
+        },
+        {
+            "shape": "text",
+            "value": "anything",
+            "matches": true
+        },
+        {
+            "shape": "text",
+            "value": "none",
+            "matches": true
+        },
+        {
+            "shape": "text",
+            "value": "'; DROP TABLE t; --",
+            "matches": true
+        },
+        {
+            "shape": "uuid",
+            "value": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+            "matches": true
+        },
+        {
+            "shape": "uuid",
+            "value": "A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11",
+            "matches": true
+        },
+        {
+            "shape": "uuid",
+            "value": "A0eEbC99-9c0B-4eF8-Bb6D-6bB9bD380A11",
+            "matches": true
+        },
+        {
+            "shape": "uuid",
+            "value": "00000000-0000-0000-0000-000000000000",
+            "matches": true
+        },
+        {
+            "shape": "uuid",
+            "value": "{a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11}",
+            "matches": false
+        },
+        {
+            "shape": "uuid",
+            "value": "a0eebc999c0b4ef8bb6d6bb9bd380a11",
+            "matches": false
+        },
+        {
+            "shape": "uuid",
+            "value": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11\n",
+            "matches": false
+        },
+        {
+            "shape": "uuid",
+            "value": " a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+            "matches": false
+        },
+        {
+            "shape": "uuid",
+            "value": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11 ",
+            "matches": false
+        },
+        {
+            "shape": "uuid",
+            "value": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a1",
+            "matches": false
+        },
+        {
+            "shape": "uuid",
+            "value": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a111",
+            "matches": false
+        },
+        {
+            "shape": "uuid",
+            "value": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a1g",
+            "matches": false
+        },
+        {
+            "shape": "uuid",
+            "value": "garbage",
+            "matches": false
+        },
+        {
+            "shape": "uuid",
+            "value": "",
+            "matches": false
+        },
+        {
+            "shape": "uuid",
+            "value": "none",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "0",
+            "matches": true
+        },
+        {
+            "shape": "id",
+            "value": "-0",
+            "matches": true
+        },
+        {
+            "shape": "id",
+            "value": "+0",
+            "matches": true
+        },
+        {
+            "shape": "id",
+            "value": "5",
+            "matches": true
+        },
+        {
+            "shape": "id",
+            "value": "+5",
+            "matches": true
+        },
+        {
+            "shape": "id",
+            "value": " 5",
+            "matches": true
+        },
+        {
+            "shape": "id",
+            "value": "5 ",
+            "matches": true
+        },
+        {
+            "shape": "id",
+            "value": " 5 ",
+            "matches": true
+        },
+        {
+            "shape": "id",
+            "value": "\t5",
+            "matches": true
+        },
+        {
+            "shape": "id",
+            "value": "\n5",
+            "matches": true
+        },
+        {
+            "shape": "id",
+            "value": "\r5",
+            "matches": true
+        },
+        {
+            "shape": "id",
+            "value": "\u000b5",
+            "matches": true
+        },
+        {
+            "shape": "id",
+            "value": "5\n",
+            "matches": true
+        },
+        {
+            "shape": "id",
+            "value": "\t\n 5 \r\u000b",
+            "matches": true
+        },
+        {
+            "shape": "id",
+            "value": "9223372036854775807",
+            "matches": true
+        },
+        {
+            "shape": "id",
+            "value": "-5",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": " -5",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "-9223372036854775808",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "9223372036854775808",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "99999999999999999999",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "00",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "05",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "010",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "-00",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "+00",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "-05",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "\f5",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "\u00005",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "5\u0000",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "1e3",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "0x10",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "5.0",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "1_000",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "１",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "٣",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": " ",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "-",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "+",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "- 5",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "+-5",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "--5",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "none",
+            "matches": false
+        },
+        {
+            "shape": "id",
+            "value": "abc",
+            "matches": false
+        },
+        {
+            "shape": "boolean",
+            "value": "true",
+            "matches": true,
+            "cast": true
+        },
+        {
+            "shape": "boolean",
+            "value": "TRUE",
+            "matches": true,
+            "cast": true
+        },
+        {
+            "shape": "boolean",
+            "value": "tRuE",
+            "matches": true,
+            "cast": true
+        },
+        {
+            "shape": "boolean",
+            "value": "1",
+            "matches": true,
+            "cast": true
+        },
+        {
+            "shape": "boolean",
+            "value": "false",
+            "matches": true,
+            "cast": false
+        },
+        {
+            "shape": "boolean",
+            "value": "FALSE",
+            "matches": true,
+            "cast": false
+        },
+        {
+            "shape": "boolean",
+            "value": "False",
+            "matches": true,
+            "cast": false
+        },
+        {
+            "shape": "boolean",
+            "value": "0",
+            "matches": true,
+            "cast": false
+        },
+        {
+            "shape": "boolean",
+            "value": "yes",
+            "matches": false
+        },
+        {
+            "shape": "boolean",
+            "value": "no",
+            "matches": false
+        },
+        {
+            "shape": "boolean",
+            "value": "on",
+            "matches": false
+        },
+        {
+            "shape": "boolean",
+            "value": "t",
+            "matches": false
+        },
+        {
+            "shape": "boolean",
+            "value": "f",
+            "matches": false
+        },
+        {
+            "shape": "boolean",
+            "value": "01",
+            "matches": false
+        },
+        {
+            "shape": "boolean",
+            "value": " true",
+            "matches": false
+        },
+        {
+            "shape": "boolean",
+            "value": "true ",
+            "matches": false
+        },
+        {
+            "shape": "boolean",
+            "value": "",
+            "matches": false
+        },
+        {
+            "shape": "boolean",
+            "value": "none",
+            "matches": false
+        },
+        {
+            "shape": "boolean",
+            "value": "truе",
+            "matches": false
+        }
+    ]
+}
