@@ -25,7 +25,7 @@ controller explicitly permits — anything else is rejected with a 400.
 
 ## Installation
 
-Requires PHP 8.4, Laravel 12 or 13.
+Requires PHP 8.4 and Laravel 13.
 
 ```bash
 composer require roundly-consulting/query-builder-for-laravel
